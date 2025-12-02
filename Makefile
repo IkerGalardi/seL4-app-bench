@@ -41,7 +41,8 @@ $(IMG): build/seriald.elf webserver.system
 # SERIALD BUILDING                                                             #
 ################################################################################
 
-SERIALD_OBJ=build/seriald/entry.o
+SERIALD_OBJ=build/seriald/entry.o \
+            build/seriald/pl011.o
 
 build/seriald.elf: $(SERIALD_OBJ)
 	$(LD) $(LDFLAGS) $(SERIALD_OBJ) -o build/seriald.elf
