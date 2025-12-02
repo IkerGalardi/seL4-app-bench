@@ -1,3 +1,7 @@
 vendor/microkit-sdk
+
 build/seriald/*.o
 build/seriald.elf
+
+build/loader.img
+build/report.txt
