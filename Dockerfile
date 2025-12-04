@@ -1,7 +1,7 @@
 FROM debian:trixie
 
 RUN apt update
-RUN apt install -y build-essential wget binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu git python3 python3-pip
+RUN apt install -y build-essential wget binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu git python3 python3-pip qemu-system-arm
 
 # Install zig
 RUN cd /tmp; \
