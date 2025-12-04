@@ -14,6 +14,7 @@ RUN cd /tmp; \
 # Install sdfgen tool
 RUN cd /tmp; \
     git clone --depth=1 https://github.com/au-ts/microkit_sdf_gen.git; \
+    git checkout 0.28.1; \
     cd microkit_sdf_gen; \
     zig build c -p /usr/; \
     pip install . --break-system-packages
