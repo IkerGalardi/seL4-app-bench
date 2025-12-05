@@ -51,18 +51,25 @@ build/seriald/%.o: servers/serial/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
-# RUNNING VM                                                                   #
+# VM Related                                                                   #
 ################################################################################
+
+QEMU_FLAGS=-cpu $(TOOLCHAIN_CPU) \
+           -nographic \
+           -serial mon:stdio \
+           -device loader,file=$(IMG),addr=0x70000000,cpu-num=0 \
+           -m size=2G \
+           -netdev user,id=mynet0 \
+           -device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
+
+qemuvirt.dtb:
+	qemu-system-aarch64 -machine virt,virtualization=on,dumpdtb=qemuvirt.dtb \
+            $(QEMU_FLAGS)
+
 
 qemu: $(IMG)
 	qemu-system-aarch64 -machine virt,virtualization=on \
-            -cpu $(TOOLCHAIN_CPU) \
-            -nographic \
-            -serial mon:stdio \
-            -device loader,file=$(IMG),addr=0x70000000,cpu-num=0 \
-            -m size=2G \
-            -netdev user,id=mynet0 \
-            -device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
+            $(QEMU_FLAGS)
 
 ################################################################################
 # BUILD ENVIRONMENT                                                            #
