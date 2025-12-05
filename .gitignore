@@ -1,7 +1,10 @@
 vendor/microkit-sdk
 
-build/seriald/*.o
-build/seriald.elf
+build/webserver/*.o
+build/webserver.elf
 
 build/loader.img
 build/report.txt
+
+qemuvirt.dtb
+webserver.system

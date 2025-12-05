@@ -29,7 +29,10 @@ IMG_REPORT=build/report.txt
 
 all: $(IMG)
 
-$(IMG): build/seriald.elf webserver.system
+webserver.system: meta.py
+	python3 meta.py
+
+$(IMG): build/webserver.elf webserver.system
 	$(MICROKIT_TOOL) webserver.system \
             --search-path ./build \
             --board $(MICROKIT_BOARD) \
@@ -38,16 +41,15 @@ $(IMG): build/seriald.elf webserver.system
             -r $(IMG_REPORT)
 
 ################################################################################
-# SERIALD BUILDING                                                             #
+# WEBSERVER BUILDING                                                           #
 ################################################################################
 
-SERIALD_OBJ=build/seriald/entry.o \
-            build/seriald/pl011.o
+WEBSERVER_OBJ=build/webserver/entry.o
 
-build/seriald.elf: $(SERIALD_OBJ)
-	$(LD) $(LDFLAGS) $(SERIALD_OBJ) -o build/seriald.elf
+build/webserver.elf: $(WEBSERVER_OBJ)
+	$(LD) $(LDFLAGS) $(WEBSERVER_OBJ) -o build/webserver.elf
 
-build/seriald/%.o: servers/serial/%.c
+build/webserver/%.o: servers/webserver/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
@@ -92,4 +94,4 @@ env:
 ################################################################################
 
 clean:
-	rm -f build/seriald.elf build/seriald/*.o
+	rm -f build/webserver.elf $(WEBSERVER_OBJ)
