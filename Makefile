@@ -29,12 +29,20 @@ IMG_REPORT=build/report.txt
 # IMAGE BUILDING                                                               #
 ################################################################################
 
+DRIVER_PDS=build/serial_driver.elf \
+           build/serial_virt_tx.elf \
+           build/serial_virt_rx.elf
+
+PDS=build/webserver.elf \
+    $(DRIVER_PDS)
+
+
 all: $(IMG)
 
-webserver.system: meta.py
+webserver.system: meta.py build/serial_driver.elf
 	python3 meta.py
 
-$(IMG): build/webserver.elf webserver.system
+$(IMG): $(PDS) webserver.system
 	$(MICROKIT_TOOL) webserver.system \
             --search-path ./build \
             --board $(MICROKIT_BOARD) \
@@ -71,6 +79,31 @@ build/webserver.elf: $(WEBSERVER_OBJ)
 	$(LD) $(LDFLAGS) $(WEBSERVER_OBJ) -o build/webserver.elf
 
 build/webserver/%.o: servers/webserver/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+################################################################################
+# Serial related                                                               #
+################################################################################
+
+SERIAL_DRIVER_OBJ=build/serial_driver/uart.o
+SERIAL_DRIVER_INCLUDE=-Ivendor/sddf/drivers/serial/arm/include
+
+build/serial_driver.elf: $(SERIAL_DRIVER_OBJ) build/libsddf.a
+	$(LD) $(SERIAL_DRIVER_OBJ) -o $@ $(LDFLAGS)
+
+build/serial_driver/uart.o: vendor/sddf/drivers/serial/arm/uart.c
+	$(CC) -c $(CFLAGS) $(SERIAL_DRIVER_INCLUDE) $< -o $@
+
+build/serial_virt_tx.elf: build/serial_virt/virt_tx.o build/libsddf.a
+	$(LD) build/serial_virt/virt_tx.o -o $@ $(LDFLAGS)
+
+build/serial_virt_rx.elf: build/serial_virt/virt_rx.o build/libsddf.a
+	$(LD) build/serial_virt/virt_rx.o -o $@ $(LDFLAGS)
+
+build/serial_virt/virt_tx.o: vendor/sddf/serial/components/virt_tx.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+build/serial_virt/virt_rx.o: vendor/sddf/serial/components/virt_rx.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
@@ -115,4 +148,7 @@ env:
 ################################################################################
 
 clean:
-	rm -f build/libsddf.a $(LIBSDDF_OBJ) build/webserver.elf $(WEBSERVER_OBJ)
+	rm -f build/libsddf.a $(LIBSDDF_OBJ) \
+      build/serial_driver.elf $(SERIAL_DRIVER_OBJ) \
+      build/serial_virt_tx.elf build/serial_virt/*.o \
+      build/webserver.elf $(WEBSERVER_OBJ)

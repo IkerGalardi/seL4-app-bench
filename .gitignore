@@ -9,6 +9,10 @@ build/webserver.elf
 build/serial_driver/*.o
 build/serial_driver.elf
 
+build/serial_virt/*.o
+build/serial_virt_tx.elf
+build/serial_virt_rx.elf
+
 build/loader.img
 build/report.txt
 
