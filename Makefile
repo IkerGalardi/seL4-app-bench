@@ -41,13 +41,15 @@ all: $(IMG)
 webserver.system: meta.py build/serial_driver.elf
 	python3 meta.py
 
+MICROKIT_FLAGS =webserver.system
+MICROKIT_FLAGS+=--search-path ./build
+MICROKIT_FLAGS+=--board $(MICROKIT_BOARD)
+MICROKIT_FLAGS+=--config $(MICROKIT_CONFIG)
+MICROKIT_FLAGS+=-o $(IMG)
+MICROKIT_FLAGS+=-r $(IMG_REPORT)
+
 $(IMG): $(PDS) webserver.system
-	$(MICROKIT_TOOL) webserver.system \
-            --search-path ./build \
-            --board $(MICROKIT_BOARD) \
-            --config $(MICROKIT_CONFIG) \
-            -o $(IMG) \
-            -r $(IMG_REPORT)
+	$(MICROKIT_TOOL) $(MICROKIT_FLAGS)
 
 
 ################################################################################
@@ -74,7 +76,7 @@ build/libsddf/%.o: vendor/sddf/util/%.c
 
 WEBSERVER_OBJ=build/webserver/entry.o
 
-build/webserver.elf: $(WEBSERVER_OBJ)
+build/webserver.elf: $(WEBSERVER_OBJ) build/libsddf.a
 	$(LD) $(LDFLAGS) $(WEBSERVER_OBJ) -o build/webserver.elf
 
 build/webserver/%.o: servers/webserver/%.c
@@ -109,22 +111,22 @@ build/serial_virt/virt_rx.o: vendor/sddf/serial/components/virt_rx.c
 # VM Related                                                                   #
 ################################################################################
 
-QEMU_FLAGS=-cpu $(TOOLCHAIN_CPU) \
-           -nographic \
-           -serial mon:stdio \
-           -device loader,file=$(IMG),addr=0x70000000,cpu-num=0 \
-           -m size=2G \
-           -netdev user,id=mynet0 \
-           -device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
+QEMU_MACHINE=-machine virt,virtualization=on
+
+QEMU_FLAGS =-cpu $(TOOLCHAIN_CPU)
+QEMU_FLAGS+=-nographic
+QEMU_FLAGS+=-serial mon:stdio
+QEMU_FLAGS+=-device loader,file=$(IMG),addr=0x70000000,cpu-num=0
+QEMU_FLAGS+=-m size=2G
+QEMU_FLAGS+=-netdev user,id=mynet0
+QEMU_FLAGS+=-device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
 
 qemuvirt.dtb:
-	qemu-system-aarch64 -machine virt,virtualization=on,dumpdtb=qemuvirt.dtb \
-            $(QEMU_FLAGS)
+	qemu-system-aarch64 $(QEMU_MACHINE),dumpdtb=qemuvirt.dtb $(QEMU_FLAGS)
 
 
 qemu: $(IMG)
-	qemu-system-aarch64 -machine virt,virtualization=on \
-            $(QEMU_FLAGS)
+	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS)
 
 ################################################################################
 # BUILD ENVIRONMENT                                                            #
@@ -133,21 +135,20 @@ qemu: $(IMG)
 buildenv:
 	docker build . -t sel4webserverdev
 
+DOCKER_FLAGS =run --name sel4webserverdev --rm -v $(shell pwd):/code
+DOCKER_FLAGS+=-w /code/ -it sel4webserverdev
+
 env:
-	docker run --name sel4webserverdev         \
-	       --rm                                \
-		   -v $(shell pwd):/code               \
-		   -w /code/                           \
-		   -it sel4webserverdev                \
-			2> /dev/null ||                    \
-		   docker exec -it sel4webserverdev sh
+	docker $(DOCKER_FLAGS) 2> /dev/null || docker exec -it sel4webserverdev bash
 
 ################################################################################
 # MISC                                                                         #
 ################################################################################
 
+TO_REMOVE =build/libsddf.a $(LIBSDDF_OBJ)
+TO_REMOVE+=build/serial_driver.elf $(SERIAL_DRIVER_OBJ)
+TO_REMOVE+=build/serial_virt_tx.elf build/serial_virt/*.o
+TO_REMOVE+=build/webserver.elf $(WEBSERVER_OBJ)
+
 clean:
-	rm -f build/libsddf.a $(LIBSDDF_OBJ) \
-      build/serial_driver.elf $(SERIAL_DRIVER_OBJ) \
-      build/serial_virt_tx.elf build/serial_virt/*.o \
-      build/webserver.elf $(WEBSERVER_OBJ)
+	rm -f $(TO_REMOVE)
