@@ -16,7 +16,9 @@ CC=$(TOOLCHAIN_PREFIX)-gcc
 LD=$(TOOLCHAIN_PREFIX)-ld
 AS=$(TOOLCHAIN_PREFIX)-gcc
 CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra \
-	   -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD)
+       -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
+       -Ivendor/sddf/include -Ivendor/sddf/include/extern \
+       -Ivendor/sddf/include/microkit
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld
 
 # Resulting artifacts
@@ -39,6 +41,25 @@ $(IMG): build/webserver.elf webserver.system
             --config $(MICROKIT_CONFIG) \
             -o $(IMG) \
             -r $(IMG_REPORT)
+
+
+################################################################################
+# Driver related stuff                                                         #
+################################################################################
+
+LIBSDDF_OBJ=build/libsddf/assert.o \
+            build/libsddf/bitarray.o \
+            build/libsddf/cache.o \
+            build/libsddf/fsmalloc.o \
+            build/libsddf/newlibc.o \
+            build/libsddf/printf.o \
+            build/libsddf/putchar_debug.o
+
+build/libsddf.a: $(LIBSDDF_OBJ)
+	$(AR) rcs build/libsddf.a $(LIBSDDF_OBJ)
+
+build/libsddf/%.o: vendor/sddf/util/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
 # WEBSERVER BUILDING                                                           #
@@ -94,4 +115,4 @@ env:
 ################################################################################
 
 clean:
-	rm -f build/webserver.elf $(WEBSERVER_OBJ)
+	rm -f build/libsddf.a $(LIBSDDF_OBJ) build/webserver.elf $(WEBSERVER_OBJ)

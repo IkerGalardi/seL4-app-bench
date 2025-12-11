@@ -1,7 +1,13 @@
 vendor/microkit-sdk
 
+build/libsddf/*.o
+build/libsddf.a
+
 build/webserver/*.o
 build/webserver.elf
+
+build/serial_driver/*.o
+build/serial_driver.elf
 
 build/loader.img
 build/report.txt
