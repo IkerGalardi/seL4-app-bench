@@ -17,9 +17,8 @@ LD=$(TOOLCHAIN_PREFIX)-ld
 AS=$(TOOLCHAIN_PREFIX)-gcc
 CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra \
        -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
-       -Ivendor/sddf/include -Ivendor/sddf/include/extern \
-       -Ivendor/sddf/include/microkit
-LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld
+       -Ivendor/sddf/include -Ivendor/sddf/include/microkit/
+LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld -Lbuild -lsddf
 
 # Resulting artifacts
 IMG=build/loader.img
