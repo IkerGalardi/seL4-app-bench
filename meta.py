@@ -1,5 +1,3 @@
-import argparse
-from dataclasses import dataclass
 from sdfgen import SystemDescription, Sddf, DeviceTree
 
 ProtectionDomain = SystemDescription.ProtectionDomain
