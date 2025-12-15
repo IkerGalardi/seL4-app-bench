@@ -5,7 +5,7 @@
 # Microkit SDK configuration
 MICROKIT_PATH=vendor/microkit-sdk
 MICROKIT_BOARD=qemu_virt_aarch64
-MICROKIT_CONFIG=debug
+MICROKIT_CONFIG=release
 MICROKIT_BOARD_DIR=$(MICROKIT_PATH)/board/$(MICROKIT_BOARD)/$(MICROKIT_CONFIG)
 MICROKIT_TOOL=$(MICROKIT_PATH)/bin/microkit
 
@@ -16,7 +16,7 @@ CC=$(TOOLCHAIN_PREFIX)-gcc
 LD=$(TOOLCHAIN_PREFIX)-ld
 AS=$(TOOLCHAIN_PREFIX)-gcc
 OBJCOPY=$(TOOLCHAIN_PREFIX)-objcopy
-CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra \
+CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
        -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
        -Ivendor/sddf/include -Ivendor/sddf/include/microkit/
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld -Lbuild -lsddf
@@ -83,7 +83,7 @@ build/libsddf/%.o: vendor/sddf/util/%.c
 WEBSERVER_OBJ=build/webserver/entry.o
 
 build/webserver.elf: $(WEBSERVER_OBJ) build/libsddf.a
-	$(LD) $(LDFLAGS) $(WEBSERVER_OBJ) -o build/webserver.elf
+	$(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS)
 
 build/webserver/%.o: servers/webserver/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
