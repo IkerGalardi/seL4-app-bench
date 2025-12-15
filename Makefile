@@ -68,7 +68,7 @@ LIBSDDF_OBJ=build/libsddf/assert.o \
             build/libsddf/fsmalloc.o \
             build/libsddf/newlibc.o \
             build/libsddf/printf.o \
-            build/libsddf/putchar_debug.o
+            build/libsddf/putchar_serial.o
 
 build/libsddf.a: $(LIBSDDF_OBJ)
 	$(AR) rcs build/libsddf.a $(LIBSDDF_OBJ)

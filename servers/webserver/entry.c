@@ -7,12 +7,20 @@
 #include <sddf/serial/queue.h>
 #include <sddf/serial/config.h>
 
-__attribute__((__section__(".serial_client_config"))) serial_client_config_t serial_config;
+__attribute__((__section__(".serial_client_config")))
+serial_client_config_t serial_config;
 
+serial_queue_handle_t serial_tx_queue_handle;
 
 void init()
 {
-    microkit_dbg_puts("WEBSERVER: initialized\n");
+    serial_queue_init(&serial_tx_queue_handle,
+                      serial_config.tx.queue.vaddr,
+                      serial_config.tx.data.size,
+                      serial_config.tx.data.vaddr);
+    serial_putchar_init(serial_config.tx.id, &serial_tx_queue_handle);
+
+    sddf_printf("WEBSERVER: initialized\n");
 }
 
 void notified(microkit_channel channel)
