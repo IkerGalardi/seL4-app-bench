@@ -15,6 +15,7 @@ TOOLCHAIN_PREFIX=aarch64-linux-gnu
 CC=$(TOOLCHAIN_PREFIX)-gcc
 LD=$(TOOLCHAIN_PREFIX)-ld
 AS=$(TOOLCHAIN_PREFIX)-gcc
+OBJCOPY=$(TOOLCHAIN_PREFIX)-objcopy
 CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra \
        -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
        -Ivendor/sddf/include -Ivendor/sddf/include/microkit/
@@ -38,8 +39,13 @@ PDS=build/webserver.elf \
 
 all: $(IMG)
 
-webserver.system: meta.py build/serial_driver.elf
+webserver.system: meta.py $(PDS)
 	python3 meta.py
+	$(OBJCOPY) --update-section .device_resources=build/serial_driver_device_resources.data build/serial_driver.elf
+	$(OBJCOPY) --update-section .serial_driver_config=build/serial_driver_config.data build/serial_driver.elf
+	$(OBJCOPY) --update-section .serial_virt_tx_config=build/serial_virt_tx.data build/serial_virt_tx.elf
+	$(OBJCOPY) --update-section .serial_virt_rx_config=build/serial_virt_rx.data build/serial_virt_rx.elf
+	$(OBJCOPY) --update-section .serial_client_config=build/serial_client_webserver.data build/webserver.elf
 
 MICROKIT_FLAGS =webserver.system
 MICROKIT_FLAGS+=--search-path ./build
