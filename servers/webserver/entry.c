@@ -14,6 +14,8 @@ serial_queue_handle_t serial_tx_queue_handle;
 
 void init()
 {
+    assert(serial_config_check_magic(&serial_config));
+
     serial_queue_init(&serial_tx_queue_handle,
                       serial_config.tx.queue.vaddr,
                       serial_config.tx.data.size,
