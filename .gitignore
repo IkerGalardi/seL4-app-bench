@@ -16,6 +16,10 @@ build/serial_virt/*.o
 build/serial_virt_tx.elf
 build/serial_virt_rx.elf
 
+build/eth_components/*.o
+build/network_virt_tx.elf
+build/network_virt_rx.elf
+
 build/*.data
 
 build/loader.img

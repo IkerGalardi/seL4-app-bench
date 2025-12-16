@@ -122,7 +122,19 @@ build/serial_virt/virt_rx.o: vendor/sddf/serial/components/virt_rx.c
 build/eth_driver.elf: build/eth_driver/ethernet.o build/libsddf.a
 	$(LD) build/eth_driver/ethernet.o -o $@ $(LDFLAGS)
 
+build/network_virt_rx.elf: build/eth_components/network_virt_rx.o build/libsddf.a
+	$(LD) build/eth_components/network_virt_rx.o -o $@ $(LDFLAGS)
+
+build/network_virt_tx.elf: build/eth_components/network_virt_tx.o build/libsddf.a
+	$(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
+
 build/eth_driver/ethernet.o: vendor/sddf/drivers/network/virtio/ethernet.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+build/eth_components/network_virt_rx.o: vendor/sddf/network/components/virt_rx.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+build/eth_components/network_virt_tx.o: vendor/sddf/network/components/virt_tx.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
