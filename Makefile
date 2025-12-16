@@ -29,9 +29,11 @@ IMG_REPORT=build/report.txt
 # IMAGE BUILDING                                                               #
 ################################################################################
 
-DRIVER_PDS=build/serial_driver.elf \
+SERIAL_PDS=build/serial_driver.elf \
            build/serial_virt_tx.elf \
            build/serial_virt_rx.elf
+
+NET_PDS=build/ethernet_driver.elf
 
 PDS=build/webserver.elf \
     $(DRIVER_PDS)
@@ -111,6 +113,16 @@ build/serial_virt/virt_tx.o: vendor/sddf/serial/components/virt_tx.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 build/serial_virt/virt_rx.o: vendor/sddf/serial/components/virt_rx.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+################################################################################
+# Network related                                                              #
+################################################################################
+
+build/eth_driver.elf: build/eth_driver/ethernet.o build/libsddf.a
+	$(LD) build/eth_driver/ethernet.o -o $@ $(LDFLAGS)
+
+build/eth_driver/ethernet.o: vendor/sddf/drivers/network/virtio/ethernet.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################

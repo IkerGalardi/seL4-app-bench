@@ -9,6 +9,9 @@ build/webserver.elf
 build/serial_driver/*.o
 build/serial_driver.elf
 
+build/eth_driver/*.o
+build/eth_driver.elf
+
 build/serial_virt/*.o
 build/serial_virt_tx.elf
 build/serial_virt_rx.elf
