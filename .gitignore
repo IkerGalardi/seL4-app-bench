@@ -20,6 +20,9 @@ build/eth_components/*.o
 build/network_virt_tx.elf
 build/network_virt_rx.elf
 
+build/lwip/*.o
+build/liblwip.a
+
 build/*.data
 
 build/loader.img

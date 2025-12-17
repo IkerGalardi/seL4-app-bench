@@ -119,6 +119,40 @@ build/serial_virt/virt_rx.o: vendor/sddf/serial/components/virt_rx.c
 # Network related                                                              #
 ################################################################################
 
+LIBLWIP_OBJ=build/lwip/init.o \
+            build/lwip/err.o \
+            build/lwip/def.o \
+            build/lwip/dns.o \
+            build/lwip/inet_chksum.o \
+            build/lwip/ip.o \
+            build/lwip/mem.o \
+            build/lwip/memp.o \
+            build/lwip/netif.o \
+            build/lwip/pbuf.o \
+            build/lwip/raw.o \
+            build/lwip/stats.o \
+            build/lwip/sys.o \
+            build/lwip/altcp.o \
+            build/lwip/altcp_alloc.o \
+            build/lwip/altcp_tcp.o \
+            build/lwip/tcp.o \
+            build/lwip/tcp_in.o \
+            build/lwip/tcp_out.o \
+            build/lwip/timeouts.o \
+            build/lwip/udp.o \
+            build/lwip/autoip.o \
+            build/lwip/dhcp.o \
+            build/lwip/etharp.o \
+            build/lwip/icmp.o \
+            build/lwip/igmp.o \
+            build/lwip/ip4_frag.o \
+            build/lwip/ip4.o \
+            build/lwip/ip4_addr.o \
+            build/lwip/ethernet.o
+
+LIBLWIP_INCLUDE=-Ivendor/sddf/network/ipstacks/lwip/src/include/ \
+                -Ibuild/lwip/include
+
 build/eth_driver.elf: build/eth_driver/ethernet.o build/libsddf.a
 	$(LD) build/eth_driver/ethernet.o -o $@ $(LDFLAGS)
 
@@ -128,6 +162,9 @@ build/network_virt_rx.elf: build/eth_components/network_virt_rx.o build/libsddf.
 build/network_virt_tx.elf: build/eth_components/network_virt_tx.o build/libsddf.a
 	$(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
 
+build/liblwip.a: $(LIBLWIP_OBJ)
+	$(AR) rcs build/liblwip.a $(LIBSDDF_OBJ)
+
 build/eth_driver/ethernet.o: vendor/sddf/drivers/network/virtio/ethernet.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
@@ -136,6 +173,18 @@ build/eth_components/network_virt_rx.o: vendor/sddf/network/components/virt_rx.c
 
 build/eth_components/network_virt_tx.o: vendor/sddf/network/components/virt_tx.c
 	$(CC) -c $(CFLAGS) $< -o $@
+
+build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/core/%.c
+	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+
+build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/core/ipv4/%.c
+	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+
+build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/api/%.c
+	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+
+build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/netif/%.c
+	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
 
 ################################################################################
 # VM Related                                                                   #
