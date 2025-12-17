@@ -162,6 +162,9 @@ build/network_virt_rx.elf: build/eth_components/network_virt_rx.o build/libsddf.
 build/network_virt_tx.elf: build/eth_components/network_virt_tx.o build/libsddf.a
 	$(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
 
+build/network_copy.elf: build/eth_components/network_copy.o build/libsddf.a
+	$(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
+
 build/liblwip.a: $(LIBLWIP_OBJ)
 	$(AR) rcs build/liblwip.a $(LIBSDDF_OBJ)
 
@@ -172,6 +175,9 @@ build/eth_components/network_virt_rx.o: vendor/sddf/network/components/virt_rx.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 build/eth_components/network_virt_tx.o: vendor/sddf/network/components/virt_tx.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+build/eth_components/network_copy.o: vendor/sddf/network/components/copy.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/core/%.c

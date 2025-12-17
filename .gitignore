@@ -19,6 +19,7 @@ build/serial_virt_rx.elf
 build/eth_components/*.o
 build/network_virt_tx.elf
 build/network_virt_rx.elf
+build/network_copy.elf
 
 build/lwip/*.o
 build/liblwip.a
