@@ -230,10 +230,17 @@ env:
 # MISC                                                                         #
 ################################################################################
 
-TO_REMOVE =build/libsddf.a $(LIBSDDF_OBJ)
-TO_REMOVE+=build/serial_driver.elf $(SERIAL_DRIVER_OBJ)
-TO_REMOVE+=build/serial_virt_tx.elf build/serial_virt/*.o
-TO_REMOVE+=build/webserver.elf $(WEBSERVER_OBJ)
+TO_REMOVE+=build/*.a
+TO_REMOVE+=build/*.elf
+TO_REMOVE+=build/*.data
+TO_REMOVE+=build/eth_components/*.o
+TO_REMOVE+=build/eth_driver/*.o
+TO_REMOVE+=build/libsddf/*.o
+TO_REMOVE+=build/lwip/*.o
+TO_REMOVE+=build/serial_driver/*.o
+TO_REMOVE+=build/webserver/*.o
+TO_REMOVE+=build/loader.img
+TO_REMOVE+=build/report.txt
 
 clean:
 	rm -f $(TO_REMOVE)
