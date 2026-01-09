@@ -47,12 +47,18 @@ PDS=build/webserver.elf \
 all: $(IMG)
 
 webserver.system: meta.py $(PDS)
-	python3 meta.py
-	$(OBJCOPY) --update-section .device_resources=build/serial_driver_device_resources.data build/serial_driver.elf
-	$(OBJCOPY) --update-section .serial_driver_config=build/serial_driver_config.data build/serial_driver.elf
-	$(OBJCOPY) --update-section .serial_virt_tx_config=build/serial_virt_tx.data build/serial_virt_tx.elf
-	$(OBJCOPY) --update-section .serial_virt_rx_config=build/serial_virt_rx.data build/serial_virt_rx.elf
-	$(OBJCOPY) --update-section .serial_client_config=build/serial_client_webserver.data build/webserver.elf
+	@echo "META"
+	@ python3 meta.py
+	@echo "OBJCOPY  --update-section .device_resources serial_driver.elf"
+	@ $(OBJCOPY) --update-section .device_resources=build/serial_driver_device_resources.data build/serial_driver.elf
+	@echo "OBJCOPY  --update-section .serial_driver_config serial_driver.elf"
+	@ $(OBJCOPY) --update-section .serial_driver_config=build/serial_driver_config.data build/serial_driver.elf
+	@echo "OBJCOPY  --update-section .serial_virt_tx_config serial_virt_tx.elf"
+	@ $(OBJCOPY) --update-section .serial_virt_tx_config=build/serial_virt_tx.data build/serial_virt_tx.elf
+	@echo "OBJCOPY  --update-section .serial_virt_rx_config serial_virt_rx.elf"
+	@ $(OBJCOPY) --update-section .serial_virt_rx_config=build/serial_virt_rx.data build/serial_virt_rx.elf
+	@echo "OBJCOPY  --update-section .serial_client_config webserver.elf"
+	@ $(OBJCOPY) --update-section .serial_client_config=build/serial_client_webserver.data build/webserver.elf
 
 MICROKIT_FLAGS =webserver.system
 MICROKIT_FLAGS+=--search-path ./build
@@ -62,7 +68,8 @@ MICROKIT_FLAGS+=-o $(IMG)
 MICROKIT_FLAGS+=-r $(IMG_REPORT)
 
 $(IMG): $(PDS) webserver.system
-	$(MICROKIT_TOOL) $(MICROKIT_FLAGS)
+	@echo "MICROKIT webserver.system"
+	@ $(MICROKIT_TOOL) $(MICROKIT_FLAGS)
 
 
 ################################################################################
@@ -78,10 +85,12 @@ LIBSDDF_OBJ=build/libsddf/assert.o \
             build/libsddf/putchar_serial.o
 
 build/libsddf.a: $(LIBSDDF_OBJ)
-	$(AR) rcs build/libsddf.a $(LIBSDDF_OBJ)
+	@echo "AR       libsddf.a"
+	@ $(AR) rcs build/libsddf.a $(LIBSDDF_OBJ)
 
 build/libsddf/%.o: vendor/sddf/util/%.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
 # WEBSERVER BUILDING                                                           #
@@ -90,10 +99,12 @@ build/libsddf/%.o: vendor/sddf/util/%.c
 WEBSERVER_OBJ=build/webserver/entry.o
 
 build/webserver.elf: $(WEBSERVER_OBJ) build/libsddf.a
-	$(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS)
 
 build/webserver/%.o: servers/webserver/%.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
 # Serial related                                                               #
@@ -103,22 +114,28 @@ SERIAL_DRIVER_OBJ=build/serial_driver/uart.o
 SERIAL_DRIVER_INCLUDE=-Ivendor/sddf/drivers/serial/arm/include
 
 build/serial_driver.elf: $(SERIAL_DRIVER_OBJ) build/libsddf.a
-	$(LD) $(SERIAL_DRIVER_OBJ) -o $@ $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) $(SERIAL_DRIVER_OBJ) -o $@ $(LDFLAGS)
 
 build/serial_driver/uart.o: vendor/sddf/drivers/serial/arm/uart.c
-	$(CC) -c $(CFLAGS) $(SERIAL_DRIVER_INCLUDE) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $(SERIAL_DRIVER_INCLUDE) $< -o $@
 
 build/serial_virt_tx.elf: build/serial_virt/virt_tx.o build/libsddf.a
-	$(LD) build/serial_virt/virt_tx.o -o $@ $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) build/serial_virt/virt_tx.o -o $@ $(LDFLAGS)
 
 build/serial_virt_rx.elf: build/serial_virt/virt_rx.o build/libsddf.a
-	$(LD) build/serial_virt/virt_rx.o -o $@ $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) build/serial_virt/virt_rx.o -o $@ $(LDFLAGS)
 
 build/serial_virt/virt_tx.o: vendor/sddf/serial/components/virt_tx.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/serial_virt/virt_rx.o: vendor/sddf/serial/components/virt_rx.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
 # Network related                                                              #
@@ -159,43 +176,56 @@ LIBLWIP_INCLUDE=-Ivendor/sddf/network/ipstacks/lwip/src/include/ \
                 -Ibuild/lwip/include
 
 build/eth_driver.elf: build/eth_driver/ethernet.o build/libsddf.a
-	$(LD) build/eth_driver/ethernet.o -o $@ $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) build/eth_driver/ethernet.o -o $@ $(LDFLAGS)
 
 build/network_virt_rx.elf: build/eth_components/network_virt_rx.o build/libsddf.a
-	$(LD) build/eth_components/network_virt_rx.o -o $@ $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) build/eth_components/network_virt_rx.o -o $@ $(LDFLAGS)
 
 build/network_virt_tx.elf: build/eth_components/network_virt_tx.o build/libsddf.a
-	$(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
 
 build/network_copy.elf: build/eth_components/network_copy.o build/libsddf.a
-	$(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
+	@echo "LD       $@"
+	@ $(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
 
 build/liblwip.a: $(LIBLWIP_OBJ)
-	$(AR) rcs build/liblwip.a $(LIBSDDF_OBJ)
+	@echo "AR       liblwip.a"
+	@ $(AR) rcs build/liblwip.a $(LIBSDDF_OBJ)
 
 build/eth_driver/ethernet.o: vendor/sddf/drivers/network/virtio/ethernet.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/eth_components/network_virt_rx.o: vendor/sddf/network/components/virt_rx.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/eth_components/network_virt_tx.o: vendor/sddf/network/components/virt_tx.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/eth_components/network_copy.o: vendor/sddf/network/components/copy.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/core/%.c
-	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
 
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/core/ipv4/%.c
-	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
 
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/api/%.c
-	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
 
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/netif/%.c
-	$(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
 
 ################################################################################
 # VM Related                                                                   #
