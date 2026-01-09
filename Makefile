@@ -34,10 +34,14 @@ SERIAL_PDS=build/serial_driver.elf \
            build/serial_virt_tx.elf \
            build/serial_virt_rx.elf
 
-NET_PDS=build/ethernet_driver.elf
+NET_PDS=build/eth_driver.elf \
+        build/network_virt_rx.elf \
+        build/network_virt_tx.elf \
+        build/network_copy.elf
 
 PDS=build/webserver.elf \
-    $(DRIVER_PDS)
+    $(SERIAL_PDS) \
+    $(NET_PDS)
 
 
 all: $(IMG)
