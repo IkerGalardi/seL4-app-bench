@@ -18,7 +18,8 @@ AS=$(TOOLCHAIN_PREFIX)-gcc
 OBJCOPY=$(TOOLCHAIN_PREFIX)-objcopy
 CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
        -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
-       -Ivendor/sddf/include -Ivendor/sddf/include/microkit/
+       -Ivendor/sddf/include -Ivendor/sddf/include/microkit/ \
+       -Wno-unused-function -Wno-unused-parameter
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld -Lbuild -lsddf
 
 # Resulting artifacts
