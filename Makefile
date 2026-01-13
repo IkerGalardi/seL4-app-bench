@@ -193,7 +193,7 @@ build/network_virt_tx.elf: build/eth_components/network_virt_tx.o build/libsddf.
 
 build/network_copy.elf: build/eth_components/network_copy.o build/libsddf.a
 	@echo "LD       $@"
-	@ $(LD) build/eth_components/network_virt_tx.o -o $@ $(LDFLAGS)
+	@ $(LD) build/eth_components/network_copy.o -o $@ $(LDFLAGS)
 
 build/liblwip.a: $(LIBLWIP_OBJ)
 	@echo "AR       liblwip.a"
