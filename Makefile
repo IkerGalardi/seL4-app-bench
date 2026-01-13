@@ -20,8 +20,8 @@ CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
        -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
        -Ivendor/sddf/include -Ivendor/sddf/include/microkit/ \
        -Ivendor/sddf/network/ipstacks/lwip/src/include\
-       -Wno-unused-function -Wno-unused-parameter -Ibuild/lwip/include
-CFLAGS_SDDF=-Wno-sign-compare
+       -Wno-unused-function -Wno-unused-parameter -Ibuild/lwip/include \
+       -Wno-sign-compare
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld -Lbuild -lsddf
 
 VIRTIO_DISCOVER=vendor/VirtioDiscover-Aarch64-Loader-Off0x70000000.img
@@ -135,7 +135,7 @@ build/serial_driver.elf: $(SERIAL_DRIVER_OBJ) build/libsddf.a
 
 build/serial_driver/uart.o: vendor/sddf/drivers/serial/arm/uart.c
 	@echo "CC       $<"
-	@ $(CC) -c $(CFLAGS) $(CFLAGS_SDDF) $(SERIAL_DRIVER_INCLUDE) $< -o $@
+	@ $(CC) -c $(CFLAGS) $(SERIAL_DRIVER_INCLUDE) $< -o $@
 
 build/serial_virt_tx.elf: build/serial_virt/virt_tx.o build/libsddf.a
 	@echo "LD       $@"
@@ -147,11 +147,11 @@ build/serial_virt_rx.elf: build/serial_virt/virt_rx.o build/libsddf.a
 
 build/serial_virt/virt_tx.o: vendor/sddf/serial/components/virt_tx.c
 	@echo "CC       $<"
-	@ $(CC) -c $(CFLAGS) $(CFLAGS_SDDF) $< -o $@
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/serial_virt/virt_rx.o: vendor/sddf/serial/components/virt_rx.c
 	@echo "CC       $<"
-	@ $(CC) -c $(CFLAGS) $(CFLAGS_SDDF) $< -o $@
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
 # Network related                                                              #
@@ -213,19 +213,19 @@ build/liblwip.a: $(LIBLWIP_OBJ)
 
 build/eth_driver/ethernet.o: vendor/sddf/drivers/network/virtio/ethernet.c
 	@echo "CC       $<"
-	@ $(CC) -c $(CFLAGS) $(CFLAGS_SDDF) $< -o $@
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/eth_components/network_virt_rx.o: vendor/sddf/network/components/virt_rx.c
 	@echo "CC       $<"
-	@ $(CC) -c $(CFLAGS) $(CFLAGS_SDDF) $< -o $@
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/eth_components/network_virt_tx.o: vendor/sddf/network/components/virt_tx.c
 	@echo "CC       $<"
-	@ $(CC) -c $(CFLAGS) $(CFLAGS_SDDF) $< -o $@
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/eth_components/network_copy.o: vendor/sddf/network/components/copy.c
 	@echo "CC       $<"
-	@ $(CC) -c $(CFLAGS) $(CFLAGS_SDDF) $< -o $@
+	@ $(CC) -c $(CFLAGS) $< -o $@
 
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/core/%.c
 	@echo "CC       $<"
