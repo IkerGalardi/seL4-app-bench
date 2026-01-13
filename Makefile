@@ -19,7 +19,8 @@ OBJCOPY=$(TOOLCHAIN_PREFIX)-objcopy
 CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
        -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
        -Ivendor/sddf/include -Ivendor/sddf/include/microkit/ \
-       -Wno-unused-function -Wno-unused-parameter
+       -Ivendor/sddf/network/ipstacks/lwip/src/include\
+       -Wno-unused-function -Wno-unused-parameter -Ibuild/lwip/include
 CFLAGS_SDDF=-Wno-sign-compare
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld -Lbuild -lsddf
 

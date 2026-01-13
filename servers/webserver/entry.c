@@ -6,9 +6,18 @@
 #include <sddf/util/printf.h>
 #include <sddf/serial/queue.h>
 #include <sddf/serial/config.h>
+#include <sddf/network/queue.h>
+#include <sddf/network/config.h>
+#include <sddf/network/lib_sddf_lwip.h>
 
 __attribute__((__section__(".serial_client_config")))
 serial_client_config_t serial_config;
+
+__attribute__((__section__(".net_client_config")))
+net_client_config_t net_config;
+
+__attribute__((__section__(".lib_sddf_lwip_config")))
+lib_sddf_lwip_config_t lwip_config;
 
 serial_queue_handle_t serial_tx_queue_handle;
 
