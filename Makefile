@@ -78,6 +78,8 @@ webserver.system: meta.py $(PDS)
 	@ $(OBJCOPY) --update-section .net_copy_config=build/net_copy_network_copy.data build/network_copy.elf
 	@echo "OBJCOPY  --update-section .device_resouces timer_driver.elf"
 	@ $(OBJCOPY) --update-section .device_resources=build/timer_driver_device_resources.data build/timer_driver.elf
+	@echo "OBJCOPY  --update-section .timer_client_config webserver.elf"
+	@ $(OBJCOPY) --update-section .timer_client_config=build/timer_client_webserver.data build/webserver.elf
 
 MICROKIT_FLAGS =webserver.system
 MICROKIT_FLAGS+=--search-path ./build

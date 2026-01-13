@@ -9,6 +9,8 @@
 #include <sddf/network/queue.h>
 #include <sddf/network/config.h>
 #include <sddf/network/lib_sddf_lwip.h>
+#include <sddf/timer/client.h>
+#include <sddf/timer/config.h>
 
 __attribute__((__section__(".serial_client_config")))
 serial_client_config_t serial_config;
@@ -18,6 +20,9 @@ net_client_config_t net_config;
 
 __attribute__((__section__(".lib_sddf_lwip_config")))
 lib_sddf_lwip_config_t lwip_config;
+
+__attribute__((__section__(".timer_client_config")))
+timer_client_config_t timer_config;
 
 serial_queue_handle_t serial_tx_queue_handle;
 
