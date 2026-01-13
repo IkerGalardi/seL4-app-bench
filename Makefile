@@ -63,6 +63,18 @@ webserver.system: meta.py $(PDS)
 	@ $(OBJCOPY) --update-section .serial_virt_rx_config=build/serial_virt_rx.data build/serial_virt_rx.elf
 	@echo "OBJCOPY  --update-section .serial_client_config webserver.elf"
 	@ $(OBJCOPY) --update-section .serial_client_config=build/serial_client_webserver.data build/webserver.elf
+	@echo "OBJCOPY  --update-section .net_client_config webserver.elf"
+	@ $(OBJCOPY) --update-section .net_client_config=build/net_client_webserver.data build/webserver.elf
+	@echo "OBJCOPY  --update-section .lib_sddf_lwip_config webserver.elf"
+	@ $(OBJCOPY) --update-section .lib_sddf_lwip_config=build/lib_sddf_lwip_config_webserver.data build/webserver.elf
+	@echo "OBJCOPY  --update-section .net_driver_config eth_driver.elf"
+	@ $(OBJCOPY) --update-section .net_driver_config=build/net_driver.data build/eth_driver.elf
+	@echo "OBJCOPY  --update-section .net_virt_tx_config network_virt_tx.elf"
+	@ $(OBJCOPY) --update-section .net_virt_tx_config=build/net_virt_tx.data build/network_virt_tx.elf
+	@echo "OBJCOPY  --update-section .net_virt_rx_config net_virt_rx.elf"
+	@ $(OBJCOPY) --update-section .net_virt_rx_config=build/net_virt_rx.data build/network_virt_rx.elf
+	@echo "OBJCOPY  --update-section .net_copy_config network_copy.elf"
+	@ $(OBJCOPY) --update-section .net_copy_config=build/net_copy_network_copy.data build/network_copy.elf
 
 MICROKIT_FLAGS =webserver.system
 MICROKIT_FLAGS+=--search-path ./build
