@@ -23,6 +23,8 @@ CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
 CFLAGS_SDDF=-Wno-sign-compare
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -lmicrokit -Tmicrokit.ld -Lbuild -lsddf
 
+VIRTIO_DISCOVER=vendor/VirtioDiscover-Aarch64-Loader-Off0x70000000.img
+
 # Resulting artifacts
 IMG=build/loader.img
 IMG_REPORT=build/report.txt
@@ -237,17 +239,22 @@ QEMU_MACHINE=-machine virt,virtualization=on
 QEMU_FLAGS =-cpu $(TOOLCHAIN_CPU)
 QEMU_FLAGS+=-nographic
 QEMU_FLAGS+=-serial mon:stdio
-QEMU_FLAGS+=-device loader,file=$(IMG),addr=0x70000000,cpu-num=0
 QEMU_FLAGS+=-m size=2G
 QEMU_FLAGS+=-netdev user,id=mynet0
 QEMU_FLAGS+=-device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
+
+QEMU_FLAGS_SEL4=-device loader,file=$(IMG),addr=0x70000000,cpu-num=0
+QEMU_FLAGS_DISCOVER=-device loader,file=$(VIRTIO_DISCOVER),addr=0x70000000,cpu-num=0
 
 qemuvirt.dtb:
 	qemu-system-aarch64 $(QEMU_MACHINE),dumpdtb=qemuvirt.dtb $(QEMU_FLAGS)
 
 
 qemu: $(IMG)
-	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS)
+	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_SEL4)
+
+virtio-discover: $(VIRTIO_DISCOVER)
+	@ timeout -f --preserve-status 1s qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_DISCOVER) 2> /dev/null
 
 ################################################################################
 # BUILD ENVIRONMENT                                                            #
@@ -280,3 +287,6 @@ TO_REMOVE+=build/report.txt
 
 clean:
 	rm -f $(TO_REMOVE)
+
+$(VIRTIO_DISCOVER):
+	wget https://github.com/IkerGalardi/VirtioDiscover/releases/download/v0.1.0/VirtioDiscover-Aarch64-Loader-Off0x70000000.img -O $(VIRTIO_DISCOVER)

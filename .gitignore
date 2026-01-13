@@ -31,3 +31,4 @@ build/report.txt
 
 qemuvirt.dtb
 webserver.system
+vendor/VirtioDiscover-Aarch64-Loader-Off0x70000000.img
