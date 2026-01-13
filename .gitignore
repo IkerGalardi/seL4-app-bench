@@ -21,6 +21,10 @@ build/network_virt_tx.elf
 build/network_virt_rx.elf
 build/network_copy.elf
 
+build/timer/*.o
+build/timer/*.d
+build/timer_driver.elf
+
 build/lwip/*.o
 build/liblwip.a
 

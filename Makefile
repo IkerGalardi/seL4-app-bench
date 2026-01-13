@@ -45,7 +45,8 @@ NET_PDS=build/eth_driver.elf \
 
 PDS=build/webserver.elf \
     $(SERIAL_PDS) \
-    $(NET_PDS)
+    $(NET_PDS) \
+    build/timer_driver.elf
 
 
 all: $(IMG)
@@ -75,6 +76,8 @@ webserver.system: meta.py $(PDS)
 	@ $(OBJCOPY) --update-section .net_virt_rx_config=build/net_virt_rx.data build/network_virt_rx.elf
 	@echo "OBJCOPY  --update-section .net_copy_config network_copy.elf"
 	@ $(OBJCOPY) --update-section .net_copy_config=build/net_copy_network_copy.data build/network_copy.elf
+	@echo "OBJCOPY  --update-section .device_resouces timer_driver.elf"
+	@ $(OBJCOPY) --update-section .device_resources=build/timer_driver_device_resources.data build/timer_driver.elf
 
 MICROKIT_FLAGS =webserver.system
 MICROKIT_FLAGS+=--search-path ./build
@@ -242,6 +245,19 @@ build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/api/%.c
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/netif/%.c
 	@echo "CC       $<"
 	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+
+
+################################################################################
+# Timer related                                                                #
+################################################################################
+
+build/timer/timer.o: vendor/sddf/drivers/timer/arm/timer.c
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
+
+build/timer_driver.elf: build/timer/timer.o build/libsddf.a
+	@echo "LD       $@"
+	@ $(LD) $< -o $@ $(LDFLAGS)
 
 ################################################################################
 # VM Related                                                                   #
