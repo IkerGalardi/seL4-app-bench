@@ -26,15 +26,26 @@ timer_client_config_t timer_config;
 
 serial_queue_handle_t serial_tx_queue_handle;
 
+net_queue_handle_t net_rx_handle;
+net_queue_handle_t net_tx_handle;
+
 void init()
 {
     assert(serial_config_check_magic(&serial_config));
+    assert(net_config_check_magic(&net_config));
+    assert(timer_config_check_magic(&timer_config));
 
     serial_queue_init(&serial_tx_queue_handle,
                       serial_config.tx.queue.vaddr,
                       serial_config.tx.data.size,
                       serial_config.tx.data.vaddr);
     serial_putchar_init(serial_config.tx.id, &serial_tx_queue_handle);
+
+    net_queue_init(&net_rx_handle, net_config.rx.free_queue.vaddr, net_config.rx.active_queue.vaddr,
+                   net_config.rx.num_buffers);
+    net_queue_init(&net_tx_handle, net_config.tx.free_queue.vaddr, net_config.tx.active_queue.vaddr,
+                   net_config.tx.num_buffers);
+    net_buffers_init(&net_tx_handle, 0);
 
     sddf_printf("WEBSERVER: initialized\n");
 }
