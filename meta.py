@@ -27,6 +27,10 @@ serial_system = Sddf.Serial(
     sdf, serial_node, serial_driver, virt_tx=serial_virt_tx, virt_rx=serial_virt_rx
 )
 
+timer_node = dtb.node("timer")
+timer_driver = ProtectionDomain("timer_driver", "timer_driver.elf", priority=101)
+timer_system = Sddf.Timer(sdf, timer_node, timer_driver)
+
 eth_node = dtb.node("virtio_mmio@a003e00")
 eth_driver = ProtectionDomain("eth_driver", "build/eth_driver.elf", priority=199)
 network_virt_tx = ProtectionDomain(
@@ -48,11 +52,15 @@ sdf.add_pd(network_virt_tx)
 sdf.add_pd(network_virt_rx)
 sdf.add_pd(network_copy)
 sdf.add_pd(webserver)
+sdf.add_pd(timer_driver)
+timer_system.add_client(webserver)
 serial_system.add_client(webserver)
 network_system.add_client_with_copier(webserver, network_copy)
 
 assert serial_system.connect()
 assert serial_system.serialise_config("build/")
+assert timer_system.connect()
+assert timer_system.serialise_config("build/")
 assert liblwip.connect()
 assert liblwip.serialise_config("build/")
 assert network_system.connect()
