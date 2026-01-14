@@ -114,14 +114,24 @@ build/libsddf/%.o: vendor/sddf/util/%.c
 	@ $(CC) -c $(CFLAGS) $< -o $@
 
 ################################################################################
+# LIBC                                                                         #
+################################################################################
+LIBC_OBJ=build/libc/string.o \
+		 build/libc/stdlib.o
+
+build/libc/%.o: libc/%.c
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
+
+################################################################################
 # WEBSERVER BUILDING                                                           #
 ################################################################################
 
 WEBSERVER_OBJ=build/webserver/entry.o
 
-build/webserver.elf: $(WEBSERVER_OBJ) build/libsddf.a build/liblwip.a
+build/webserver.elf: $(WEBSERVER_OBJ) $(LIBC_OBJ) build/libsddf.a build/liblwip.a
 	@echo "LD       $@"
-	@ $(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS) -llwip
+	@ $(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS) -llwip $(LIBC_OBJ)
 
 build/webserver/%.o: servers/webserver/%.c
 	@echo "CC       $<"

@@ -3,6 +3,9 @@ vendor/microkit-sdk
 build/libsddf/*.o
 build/libsddf.a
 
+build/libc/*.o
+build/libc/*.d
+
 build/webserver/*.o
 build/webserver.elf
 
