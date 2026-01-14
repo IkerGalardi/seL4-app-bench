@@ -15,6 +15,11 @@
 #define NO_SYS                          1
 
 /**
+ * Don't expect any ctype related header. Use own implementation.
+ */
+#define LWIP_NO_CTYPE_H                 1
+
+/**
  * Drop support for sys_timeout and lwip-internal cyclic timers.
  */
 #define LWIP_TIMERS                     1
