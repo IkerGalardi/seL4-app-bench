@@ -225,7 +225,7 @@ build/network_copy.elf: build/eth_components/network_copy.o build/libsddf.a
 
 build/liblwip.a: $(LIBLWIP_OBJ)
 	@echo "AR       liblwip.a"
-	@ $(AR) rcs build/liblwip.a $(LIBSDDF_OBJ)
+	@ $(AR) rcs build/liblwip.a $(LIBLWIP_OBJ)
 
 build/eth_driver/ethernet.o: vendor/sddf/drivers/network/virtio/ethernet.c
 	@echo "CC       $<"
