@@ -119,9 +119,9 @@ build/libsddf/%.o: vendor/sddf/util/%.c
 
 WEBSERVER_OBJ=build/webserver/entry.o
 
-build/webserver.elf: $(WEBSERVER_OBJ) build/libsddf.a
+build/webserver.elf: $(WEBSERVER_OBJ) build/libsddf.a build/liblwip.a
 	@echo "LD       $@"
-	@ $(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS)
+	@ $(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS) -llwip
 
 build/webserver/%.o: servers/webserver/%.c
 	@echo "CC       $<"
@@ -191,7 +191,8 @@ LIBLWIP_OBJ=build/lwip/init.o \
             build/lwip/ip4_frag.o \
             build/lwip/ip4.o \
             build/lwip/ip4_addr.o \
-            build/lwip/ethernet.o
+            build/lwip/ethernet.o \
+            build/lwip/sddf_lwip.o
 
 LIBLWIP_INCLUDE=-Ivendor/sddf/network/ipstacks/lwip/src/include/ \
                 -Ibuild/lwip/include
@@ -245,6 +246,10 @@ build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/api/%.c
 	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
 
 build/lwip/%.o: vendor/sddf/network/ipstacks/lwip/src/netif/%.c
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
+
+build/lwip/sddf_lwip.o: vendor/sddf/network/lib_sddf_lwip/lib_sddf_lwip.c
 	@echo "CC       $<"
 	@ $(CC) -c $(CFLAGS) $(LIBLWIP_INCLUDE) $< -o $@
 
