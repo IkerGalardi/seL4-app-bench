@@ -70,6 +70,8 @@ webserver.system: meta.py $(PDS)
 	@ $(OBJCOPY) --update-section .lib_sddf_lwip_config=build/lib_sddf_lwip_config_webserver.data build/webserver.elf
 	@echo "OBJCOPY  --update-section .net_driver_config eth_driver.elf"
 	@ $(OBJCOPY) --update-section .net_driver_config=build/net_driver.data build/eth_driver.elf
+	@echo "OBJCOPY  --update-section .device_resources eth_driver.elf"
+	@ $(OBJCOPY) --update-section .device_resources=build/eth_driver_device_resources.data build/eth_driver.elf
 	@echo "OBJCOPY  --update-section .net_virt_tx_config network_virt_tx.elf"
 	@ $(OBJCOPY) --update-section .net_virt_tx_config=build/net_virt_tx.data build/network_virt_tx.elf
 	@echo "OBJCOPY  --update-section .net_virt_rx_config net_virt_rx.elf"
