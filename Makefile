@@ -290,6 +290,7 @@ QEMU_FLAGS+=-serial mon:stdio
 QEMU_FLAGS+=-m size=2G
 QEMU_FLAGS+=-netdev user,id=mynet0
 QEMU_FLAGS+=-device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
+QEMU_FLAGS+=-global virtio-mmio.force-legacy=false
 
 QEMU_FLAGS_SEL4=-device loader,file=$(IMG),addr=0x70000000,cpu-num=0
 QEMU_FLAGS_DISCOVER=-device loader,file=$(VIRTIO_DISCOVER),addr=0x70000000,cpu-num=0
