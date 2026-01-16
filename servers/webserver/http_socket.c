@@ -6,6 +6,12 @@
 #include <lwip/pbuf.h>
 #include <lwip/tcp.h>
 
+const char *http_error_msg =
+"HTTP/1.0 404 Not Found\n"
+"Content-Type: text/html; charset=UTF-8\n"
+"\n"
+"<h1>404 Page not found</h1>\n\n";
+
 #define MAX_CONCURRENT_CONNECTIONS 4
 
 typedef struct
@@ -41,7 +47,8 @@ static void http_error_callback(void *arg, err_t err)
 
 static err_t http_sent_callback(void *arg, struct tcp_pcb *pcb, u16_t len)
 {
-    return ERR_MEM;
+    tcp_recved(pcb, len);
+    return ERR_OK;
 }
 
 static err_t http_recv_callback(void *arg,
@@ -49,7 +56,36 @@ static err_t http_recv_callback(void *arg,
                                struct pbuf *p,
                                err_t err)
 {
-    return ERR_MEM;
+    http_socket_state *state = arg;
+
+    // Nothing arrived, should close socket
+    if (p == NULL) {
+        free_socket_state(state);
+        tcp_arg(pcb, NULL);
+
+        err = tcp_close(pcb);
+        if (err) {
+            sddf_printf("WEBSERVER|CLOSE[%s:%d]: could not close connection\n",
+                        ipaddr_ntoa(&pcb->remote_ip), pcb->remote_port);
+            return err;
+        }
+    }
+
+    if (err) {
+        sddf_printf("WEBSERVER|RECV[%s:%d]: recv error: %s\n",
+                    ipaddr_ntoa(&pcb->remote_ip),
+                    pcb->remote_port,
+                    lwip_strerr(err));
+        return err;
+    }
+
+    pbuf_free(p);
+
+    err = tcp_write(pcb, http_error_msg, sddf_strlen(http_error_msg) + 1, 0);
+    tcp_output(pcb);
+
+    assert(p->tot_len > 0);
+    return ERR_OK;
 }
 
 static err_t http_accept_callback(void *arg, struct tcp_pcb *pcb, err_t err)
