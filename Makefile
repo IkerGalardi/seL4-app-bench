@@ -289,7 +289,7 @@ QEMU_FLAGS =-cpu $(TOOLCHAIN_CPU)
 QEMU_FLAGS+=-nographic
 QEMU_FLAGS+=-serial mon:stdio
 QEMU_FLAGS+=-m size=2G
-QEMU_FLAGS+=-netdev user,id=mynet0
+QEMU_FLAGS+=-netdev user,id=mynet0,hostfwd=tcp::80-:80
 QEMU_FLAGS+=-device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
 QEMU_FLAGS+=-global virtio-mmio.force-legacy=false
 
