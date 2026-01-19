@@ -133,10 +133,8 @@ void init()
 void notified(microkit_channel channel)
 {
     if (channel == net_config.rx.id) {
-        sddf_printf("WEBSERVER: received notification from network (RX)\n");
         sddf_lwip_process_rx();
     } else if (channel == net_config.tx.id) {
-        sddf_printf("WEBSERVER: received notification from network (TX)\n");
         transmit();
     } else if (channel == timer_config.driver_id) {
         sddf_lwip_process_timeout();
