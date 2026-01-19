@@ -25,6 +25,8 @@ typedef struct
     bool in_use;
 
     struct pbuf *req;
+
+    char response[512];
 } http_socket_state;
 
 http_socket_state socket_state_pool[MAX_CONCURRENT_CONNECTIONS];
@@ -44,6 +46,28 @@ static void free_socket_state(http_socket_state *state)
     state->in_use = false;
 }
 
+#define HTTP_MAX_TARGET_CHARS 64
+static bool http_extract_request_target(char *request, char *target) {
+    while (*request != ' ' && *request != '\0') {
+        request++;
+    }
+    if (*request == '\0') {
+        return false;
+    }
+    request++;
+
+    while (*request != ' ' && *request != '\0') {
+        *target = *request;
+        request++;
+        target++;
+    }
+    if (*request == '\0') {
+        return false;
+    }
+
+    return true;
+}
+
 static void http_error_callback(void *arg, err_t err)
 {
     http_socket_state *state = arg;
@@ -52,7 +76,13 @@ static void http_error_callback(void *arg, err_t err)
 
 static err_t http_sent_callback(void *arg, struct tcp_pcb *pcb, u16_t len)
 {
+    http_socket_state *state = arg;
     tcp_recved(pcb, len);
+
+    free_socket_state(state);
+    tcp_arg(pcb, NULL);
+    tcp_close(pcb);
+
     return ERR_OK;
 }
 
@@ -87,20 +117,23 @@ static err_t http_recv_callback(void *arg,
     }
 
     char *payload = p->payload;
-    sddf_printf("%s\n", payload);
     if (payload[0] == 'G' && payload[1] == 'E' && payload[2] == 'T') {
-        err = tcp_write(pcb, http_template_msg, sddf_strlen(http_template_msg), 0);
-        tcp_output(pcb);
+        char target[HTTP_MAX_TARGET_CHARS] = {0};
+        if (http_extract_request_target(payload, target) == true) {
+            sddf_snprintf(state->response, 511, http_template_msg, target);
+
+            err = tcp_write(pcb, state->response, sddf_strlen(state->response), 0);
+            tcp_output(pcb);
+        } else {
+            err = tcp_write(pcb, http_error_msg, sddf_strlen(http_error_msg), 0);
+            tcp_output(pcb);
+        }
     } else {
         err = tcp_write(pcb, http_error_msg, sddf_strlen(http_error_msg), 0);
         tcp_output(pcb);
     }
 
     tcp_recved(pcb, p->len);
-
-    free_socket_state(state);
-    tcp_arg(pcb, NULL);
-    tcp_close(pcb);
 
     return ERR_OK;
 }
