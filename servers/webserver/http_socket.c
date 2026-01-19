@@ -12,14 +12,19 @@ const char *http_error_msg =
 "\n"
 "<h1>404 Page not found</h1>\n\n";
 
+const char *http_template_msg =
+"HTTP/1.0 200 OK\n"
+"Content-Type: text/html; charset=UTF-8\n"
+"\n"
+"<h1>%s</h1>\n";
+
 #define MAX_CONCURRENT_CONNECTIONS 4
 
 typedef struct
 {
     bool in_use;
 
-    size_t tail;
-    size_t head;
+    struct pbuf *req;
 } http_socket_state;
 
 http_socket_state socket_state_pool[MAX_CONCURRENT_CONNECTIONS];
@@ -58,6 +63,8 @@ static err_t http_recv_callback(void *arg,
 {
     http_socket_state *state = arg;
 
+    sddf_printf("WEBSERVER|HTTP: recv_callback with %u bytes with error %s\n", p->tot_len, lwip_strerr(err));
+
     // Nothing arrived, should close socket
     if (p == NULL) {
         free_socket_state(state);
@@ -79,12 +86,22 @@ static err_t http_recv_callback(void *arg,
         return err;
     }
 
-    pbuf_free(p);
+    char *payload = p->payload;
+    sddf_printf("%s\n", payload);
+    if (payload[0] == 'G' && payload[1] == 'E' && payload[2] == 'T') {
+        err = tcp_write(pcb, http_template_msg, sddf_strlen(http_template_msg), 0);
+        tcp_output(pcb);
+    } else {
+        err = tcp_write(pcb, http_error_msg, sddf_strlen(http_error_msg), 0);
+        tcp_output(pcb);
+    }
 
-    err = tcp_write(pcb, http_error_msg, sddf_strlen(http_error_msg) + 1, 0);
-    tcp_output(pcb);
+    tcp_recved(pcb, p->len);
 
-    assert(p->tot_len > 0);
+    free_socket_state(state);
+    tcp_arg(pcb, NULL);
+    tcp_close(pcb);
+
     return ERR_OK;
 }
 
@@ -98,9 +115,6 @@ static err_t http_accept_callback(void *arg, struct tcp_pcb *pcb, err_t err)
 
     sddf_printf("WEBSERVER|ACCEPT[%s:%d]: connection accepted\n",
         ipaddr_ntoa(&pcb->remote_ip), pcb->remote_port);
-
-    state->tail = 0;
-    state->head = 0;
 
     tcp_nagle_disable(pcb);
     tcp_arg(pcb, state);
