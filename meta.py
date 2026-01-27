@@ -46,7 +46,10 @@ serial_system = Sddf.Serial(
 
 timer_node = dtb.node("timer")
 timer_driver = ProtectionDomain(
-    "timer_driver", "timer_driver.elf", priority=101, cpu=core_conf["timer_driver"]
+    "timer_driver",
+    "build/timer_driver.elf",
+    priority=101,
+    cpu=core_conf["timer_driver"],
 )
 timer_system = Sddf.Timer(sdf, timer_node, timer_driver)
 
