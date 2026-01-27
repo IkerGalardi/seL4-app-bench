@@ -1,4 +1,9 @@
 ################################################################################
+# PROJECT CONFIGURATION                                                        #
+################################################################################
+CONFIG_NUM_CORES=1
+
+################################################################################
 # VARIABLE CONFIGURATION                                                       #
 ################################################################################
 
@@ -53,7 +58,7 @@ all: $(IMG)
 
 webserver.system: meta.py $(PDS) qemuvirt.dtb
 	@echo "META"
-	@ python3 meta.py
+	@ python3 meta.py build/core_config/$(CONFIG_NUM_CORES).json
 	@echo "OBJCOPY  --update-section .device_resources serial_driver.elf"
 	@ $(OBJCOPY) --update-section .device_resources=build/serial_driver_device_resources.data build/serial_driver.elf
 	@echo "OBJCOPY  --update-section .serial_driver_config serial_driver.elf"
