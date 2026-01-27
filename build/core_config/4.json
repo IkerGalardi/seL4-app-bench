@@ -1,0 +1,11 @@
+{
+  "serial_driver": 0,
+  "serial_virt_tx": 0,
+  "serial_virt_rx": 0,
+  "eth_driver": 1,
+  "network_virt_tx": 1,
+  "network_virt_rx": 1,
+  "network_copy": 1,
+  "webserver": 3,
+  "timer_driver": 1
+}
