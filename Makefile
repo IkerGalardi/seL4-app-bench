@@ -51,7 +51,7 @@ PDS=build/webserver.elf \
 
 all: $(IMG)
 
-webserver.system: meta.py $(PDS)
+webserver.system: meta.py $(PDS) qemuvirt.dtb
 	@echo "META"
 	@ python3 meta.py
 	@echo "OBJCOPY  --update-section .device_resources serial_driver.elf"
