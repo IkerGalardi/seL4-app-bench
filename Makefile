@@ -135,13 +135,18 @@ build/libc/%.o: libc/%.c
 ################################################################################
 
 WEBSERVER_OBJ=build/webserver/entry.o \
-              build/webserver/http_socket.o
+              build/webserver/fs.o \
+              build/webserver/httpd.o
 
 build/webserver.elf: $(WEBSERVER_OBJ) $(LIBC_OBJ) build/libsddf.a build/liblwip.a
 	@echo "LD       $@"
 	@ $(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS) -llwip $(LIBC_OBJ)
 
 build/webserver/%.o: servers/webserver/%.c
+	@echo "CC       $<"
+	@ $(CC) -c $(CFLAGS) $< -o $@
+
+build/webserver/%.o: vendor/sddf/network/ipstacks/lwip/src/apps/http/%.c
 	@echo "CC       $<"
 	@ $(CC) -c $(CFLAGS) $< -o $@
 

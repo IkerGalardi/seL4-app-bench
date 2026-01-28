@@ -12,8 +12,7 @@
 #include <sddf/timer/client.h>
 #include <sddf/timer/config.h>
 #include <lwip/pbuf.h>
-
-#include "http_socket.h"
+#include <lwip/apps/httpd.h>
 
 __attribute__((__section__(".serial_client_config")))
 serial_client_config_t serial_config;
@@ -125,7 +124,7 @@ void init()
 
     sddf_lwip_maybe_notify();
 
-    http_socket_setup();
+    httpd_init();
 
     sddf_printf("WEBSERVER: initialized\n");
 }
