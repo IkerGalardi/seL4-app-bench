@@ -134,7 +134,7 @@ build/libc/%.o: libc/%.c
 # WEBSERVER BUILDING                                                           #
 ################################################################################
 
-WEBSERVER_OBJ=build/webserver/entry.o \
+WEBSERVER_OBJ=build/webserver/webserver.o \
               build/webserver/fs.o \
               build/webserver/httpd.o
 
@@ -142,7 +142,7 @@ build/webserver.elf: $(WEBSERVER_OBJ) $(LIBC_OBJ) build/libsddf.a build/liblwip.
 	@echo "LD       $@"
 	@ $(LD) $(WEBSERVER_OBJ) -o build/webserver.elf $(LDFLAGS) -llwip $(LIBC_OBJ)
 
-build/webserver/%.o: servers/webserver/%.c
+build/webserver/%.o: servers/%.c
 	@echo "CC       $<"
 	@ $(CC) -c $(CFLAGS) $< -o $@
 
