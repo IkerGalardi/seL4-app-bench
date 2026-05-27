@@ -4,14 +4,14 @@
  */
 
 #include <stdint.h>
-#include <microkit.h>
+#include <os/sddf.h>
 #include <sddf/timer/protocol.h>
+#include <sddf/timer/config.h>
 #include <sddf/util/util.h>
 #include <sddf/util/printf.h>
-#include <sddf/util/udivmodti4.h>
 #include <sddf/resources/device.h>
 
-#define MAX_TIMEOUTS 6
+#define MAX_TIMEOUTS SDDF_TIMER_MAX_CLIENTS
 
 /* taken from: https://github.com/torvalds/linux/blob/master/include/clocksource/timer-goldfish.h */
 typedef struct {
@@ -49,7 +49,7 @@ static void process_timeouts(uint64_t curr_time)
 {
     for (int i = 0; i < MAX_TIMEOUTS; i++) {
         if (timeouts[i] <= curr_time) {
-            microkit_notify(i);
+            sddf_notify(i);
             timeouts[i] = UINT64_MAX;
         }
     }
@@ -78,10 +78,10 @@ void init()
     }
 }
 
-void notified(microkit_channel ch)
+void notified(sddf_channel ch)
 {
     assert(ch == device_resources.irqs[0].id);
-    microkit_deferred_irq_ack(ch);
+    sddf_deferred_irq_ack(ch);
 
     /* Handled irq -> clear device interrupt */
     timer_regs->clear_interrupt = 1;
@@ -89,26 +89,26 @@ void notified(microkit_channel ch)
     process_timeouts(curr_time);
 }
 
-seL4_MessageInfo_t protected(microkit_channel ch, microkit_msginfo msginfo)
+seL4_MessageInfo_t protected(sddf_channel ch, seL4_MessageInfo_t msginfo)
 {
-    switch (microkit_msginfo_get_label(msginfo)) {
+    switch (seL4_MessageInfo_get_label(msginfo)) {
     case SDDF_TIMER_GET_TIME: {
         uint64_t time_ns = get_ticks_in_ns();
-        seL4_SetMR(0, time_ns);
-        return microkit_msginfo_new(0, 1);
+        sddf_set_mr(0, time_ns);
+        return seL4_MessageInfo_new(0, 0, 0, 1);
     }
     case SDDF_TIMER_SET_TIMEOUT: {
         uint64_t curr_time = get_ticks_in_ns();
-        uint64_t offset_us = (uint64_t)(seL4_GetMR(0));
+        uint64_t offset_us = (uint64_t)(sddf_get_mr(0));
         timeouts[ch] = curr_time + offset_us;
         process_timeouts(curr_time);
         break;
     }
     default:
         sddf_dprintf("TIMER DRIVER|LOG: Unknown request %lu to timer from channel %u\n",
-                     microkit_msginfo_get_label(msginfo), ch);
+                     seL4_MessageInfo_get_label(msginfo), ch);
         break;
     }
 
-    return microkit_msginfo_new(0, 0);
+    return seL4_MessageInfo_new(0, 0, 0, 0);
 }

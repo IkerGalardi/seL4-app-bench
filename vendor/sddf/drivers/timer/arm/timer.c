@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <os/sddf.h>
 #include <sddf/timer/protocol.h>
+#include <sddf/timer/config.h>
 #include <sddf/util/util.h>
 #include <sddf/util/printf.h>
 #include <sddf/util/udivmodti4.h>
@@ -17,7 +18,7 @@
 
 static uint64_t timer_freq;
 
-#define MAX_TIMEOUTS 6
+#define MAX_TIMEOUTS SDDF_TIMER_MAX_CLIENTS
 
 #define GENERIC_TIMER_ENABLE (1 << 0)
 #define GENERIC_TIMER_IMASK  (1 << 1)
@@ -39,7 +40,7 @@ static uint64_t timer_freq;
 /* frequency of the timer */
 #define CNTFRQ "cntfrq_el0"
 
-__attribute__((__section__(".device_resources"))) device_resources_t device_resources;
+__attribute__((__section__(".device_resources"), retain, used)) device_resources_t device_resources;
 
 static inline uint64_t get_ticks(void)
 {

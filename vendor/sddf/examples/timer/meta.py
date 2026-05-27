@@ -1,93 +1,37 @@
 # Copyright 2025, UNSW
 # SPDX-License-Identifier: BSD-2-Clause
+import os
+import sys
 import argparse
-from typing import List
-from dataclasses import dataclass
 from sdfgen import SystemDescription, Sddf, DeviceTree
+import importlib
+
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../tools/meta")
+)
+
+# Use importlib to dynamically load. Using `from` import below other code is bad style.
+board_module = importlib.import_module("board")
+BOARDS = board_module.BOARDS
 
 ProtectionDomain = SystemDescription.ProtectionDomain
 
 
-@dataclass
-class Board:
-    name: str
-    arch: SystemDescription.Arch
-    paddr_top: int
-    timer: str
-
-
-BOARDS: List[Board] = [
-    Board(
-        name="qemu_virt_aarch64",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0xa_000_000,
-        timer="timer"
-    ),
-    Board(
-        name="qemu_virt_riscv64",
-        arch=SystemDescription.Arch.RISCV64,
-        paddr_top=0xa_0000_000,
-        timer="soc/rtc@101000",
-    ),
-    Board(
-        name="odroidc2",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0x80000000,
-        timer="soc/bus@c1100000/watchdog@98d0"
-    ),
-    Board(
-        name="odroidc4",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0x80000000,
-        timer="soc/bus@ffd00000/watchdog@f0d0"
-    ),
-    Board(
-        name="star64",
-        arch=SystemDescription.Arch.RISCV64,
-        paddr_top=0x100000000,
-        timer="soc/timer@13050000"
-    ),
-    Board(
-        name="maaxboard",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0xa0000000,
-        timer="soc@0/bus@30000000/timer@302d0000"
-    ),
-    Board(
-        name="imx8mm_evk",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0xa0000000,
-        timer="soc@0/bus@30000000/timer@302d0000"
-    ),
-    Board(
-        name="imx8mp_evk",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0xa0000000,
-        timer="soc@0/bus@30000000/timer@302d0000"
-    ),
-    Board(
-        name="imx8mq_evk",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0xa0000000,
-        timer="soc@0/bus@30000000/timer@302d0000"
-    ),
-]
-
-
 def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
-    timer_driver = ProtectionDomain("timer_driver", "timer_driver.elf", priority=254)
+    timer_node = None
+    timer_driver = ProtectionDomain("timer_driver", "timer_driver.elf", priority=253)
     client = ProtectionDomain("client", "client.elf", priority=1)
 
-    timer_node = dtb.node(board.timer)
-    assert timer_node is not None
+    if board.arch == SystemDescription.Arch.X86_64:
+        board_module.add_x86_hpet(sdf, timer_driver)
+    else:
+        timer_node = dtb.node(board.timer)
+        assert timer_node is not None
 
     timer_system = Sddf.Timer(sdf, timer_node, timer_driver)
     timer_system.add_client(client)
 
-    pds = [
-        timer_driver,
-        client
-    ]
+    pds = [timer_driver, client]
     for pd in pds:
         sdf.add_pd(pd)
 
@@ -98,9 +42,9 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
         f.write(sdf.render())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dtb", required=True)
+    parser.add_argument("--dtb", required=False)
     parser.add_argument("--sddf", required=True)
     parser.add_argument("--board", required=True, choices=[b.name for b in BOARDS])
     parser.add_argument("--output", required=True)
@@ -113,7 +57,9 @@ if __name__ == '__main__':
     sdf = SystemDescription(board.arch, board.paddr_top)
     sddf = Sddf(args.sddf)
 
-    with open(args.dtb, "rb") as f:
-        dtb = DeviceTree(f.read())
+    dtb = None
+    if board.arch != SystemDescription.Arch.X86_64:
+        with open(args.dtb, "rb") as f:
+            dtb = DeviceTree(f.read())
 
     generate(args.sdf, args.output, dtb)

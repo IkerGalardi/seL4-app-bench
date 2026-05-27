@@ -5,7 +5,7 @@
 
 #include "usdhc.h"
 
-#include <microkit.h>
+#include <os/sddf.h>
 #include <sddf/blk/config.h>
 #include <sddf/blk/queue.h>
 #include <sddf/blk/storage_info.h>
@@ -108,6 +108,7 @@ static struct driver_state {
         CardIdentStateOpCond,
         CardIdentStateSendCid,
         CardIdentStateSendRca,
+        CardIdentStateFrequencyChange,
         CardIdentStateSendCsd,
         CardIdentStateCardSelect,
         CardIdentStateDone,
@@ -270,9 +271,6 @@ static drv_status_t handle_interrupt_status(sd_cmd_t cmd)
     /* Important Note: INT_STATUS register is of the W1C (write 1 to clear) type */
     uint32_t int_status = usdhc_regs->int_status;
 
-    /* !cmd.data_present => !(int_status & USDHC_INT_STATUS_TC) */
-    assert(cmd.data_present || !(int_status & USDHC_INT_STATUS_TC));
-
     /* If any bits aside from Command Complete / Transfer Complete are set... */
     if (int_status & ~(USDHC_INT_STATUS_CC | USDHC_INT_STATUS_TC)) {
         /* [IMX8MDQLQRM] Tables 10-44, 10-45, 10-46.
@@ -280,8 +278,19 @@ static drv_status_t handle_interrupt_status(sd_cmd_t cmd)
             TODO: Map the specific errors to something sensible.
             TODO: Run the RST_C / RST_D to reset the comamnd/ data inhibit?
                 & Follow the proper [SD-HOST] error handling flow.
+
+            NOTE: As we don't do this, any errors cause the driver to
+                  continuously error with 'Could not send a command as CMD/DATA-inhibit
+                  fields were set' for any further commands.
          */
         LOG_DRIVER("-> received error response\n");
+
+        if (int_status & USDHC_INT_STATUS_DMAE) {
+            /* DMA error ==> probably a virtualiser error because of an
+               incorrect memory address. */
+            LOG_DRIVER_ERR("DMA error encountered: DS_ADDR: 0x%x\n", usdhc_regs->ds_addr);
+        }
+
         usdhc_regs->int_status = 0xffffffff;
 
         if (!card_detected()) {
@@ -293,6 +302,9 @@ static drv_status_t handle_interrupt_status(sd_cmd_t cmd)
 
         return DrvErrorInternal;
     }
+
+    /* !cmd.data_present => !(int_status & USDHC_INT_STATUS_TC) */
+    assert(cmd.data_present || !(int_status & USDHC_INT_STATUS_TC));
 
     if (int_status & USDHC_INT_STATUS_CC) {
         LOG_DRIVER("-> received response\n");
@@ -338,16 +350,33 @@ drv_status_t send_command_inner(command_state_t *state, sd_cmd_t cmd, uint32_t c
     switch (*state) {
     case SendStateInit:
         /* [IMX8MDQLQRM] 10.3.7.1.5 Command Transfer Type
-           The host driver checks the Command Inhibit DAT field (PRES_STATE[CDIHB]) and
-           the \Command Inhibit CMD field (PRES_STATE[CIHB]) in the Present State register
-           before writing to this register.
-        */
+         * The host driver checks the Command Inhibit DAT field (PRES_STATE[CDIHB]) and
+         * the \Command Inhibit CMD field (PRES_STATE[CIHB]) in the Present State register
+         * before writing to this register.
+         *
+         * There seems to be an issue with this IMX8 uSDHC device, where even
+         * though the CC and TC interrupts have come in and been acknowledged,
+         * the Command/Data Inhibit flags are still set. They seem to disappear
+         * after a few reads, and can sometimes appear even after doing:
+         *
+         *    while inhibit;
+         *    if inhibit { print error }
+         *    send command;
+         *
+         * So there's something really strange going on. @peterc thinks that it
+         * can be the card pulling the CMD/DATA lines high and marking it as busy.
+         *
+         * References:
+         * - https://github.com/ARM-software/arm-trusted-firmware/blob/2377542785a13e776f1c52ffdeb22ef0e83873a5/drivers/imx/usdhc/imx_usdhc.c#L122-L125
+         * - https://github.com/zephyrproject-rtos/zephyr/pull/40522
+         * - https://patchwork.ozlabs.org/project/uboot/patch/1357665792-8141-1-git-send-email-l.majewski@samsung.com/
+         */
+#ifdef DEBUG_DRIVER
         if (usdhc_regs->pres_state & (USDHC_PRES_STATE_CIHB | USDHC_PRES_STATE_CDIHB)) {
-            LOG_DRIVER_ERR("Could not send a command as CMD/DATA-inhibit fields were set\n");
-            usdhc_debug();
-
-            return DrvErrorInternal;
+            LOG_DRIVER("CMD/DATA-inhibit fields were set when sending a command..."
+                       "sending anyway in the hope it goes away\n");
         }
+#endif
 
         *state = SendStateSend;
         fallthrough;
@@ -756,12 +785,14 @@ drv_status_t perform_card_identification_and_select()
 
         /* The card is now in the STANDBY state of the 'Data transfer mode' */
         card_info.card_state = CardStateStdby;
-        /* [SD-PHY] 4.3 Data Transfer Mode
-            > In Data Transfer Mode the host may operate the card in f_PP frequency range.
-
-            TODO(#187): Actually do `usdhc_change_clock_frequency(ClockSpeedDefault_25MHz)`
-         */
         driver_state.card_ident = CardIdentStateSendCsd;
+        fallthrough;
+
+    case CardIdentStateFrequencyChange:
+        /* [SD-PHY] 4.3 Data Transfer Mode
+         * > In Data Transfer Mode the host may operate the card in f_PP frequency range.
+         */
+        usdhc_change_clock_frequency(ClockSpeedDefaultSpeed_25MHz);
         fallthrough;
 
     case CardIdentStateSendCsd:
@@ -1029,7 +1060,7 @@ void setup_blk_storage_info()
 
     LOG_DRIVER("Card size (blocks): %lu\n", storage_info->capacity);
 
-    __atomic_store_n(&storage_info->ready, true, __ATOMIC_RELEASE);
+    blk_storage_set_ready(storage_info, true);
     LOG_DRIVER("Driver initialisation complete\n");
 }
 
@@ -1087,7 +1118,7 @@ void handle_client_device_inactive(void)
         }
     }
 
-    microkit_notify(blk_config.virt.id);
+    sddf_notify(blk_config.virt.id);
 }
 
 void handle_client(bool was_irq)
@@ -1187,7 +1218,7 @@ void handle_client(bool was_irq)
     assert(!err);
     LOG_DRIVER("Enqueued response: status=%d, success_count=%d, id=%d\n", response_status, success_count,
                driver_state.blk_req.id);
-    microkit_notify(blk_config.virt.id);
+    sddf_notify(blk_config.virt.id);
 
     driver_state.blk_req.inflight = false;
 
@@ -1219,12 +1250,12 @@ void do_bringup(void)
     handle_client(/* was_irq: */ false);
 }
 
-void notified(microkit_channel ch)
+void notified(sddf_channel ch)
 {
     if (driver_status == DrvStatusBringup) {
         if (ch == device_resources.irqs[0].id) {
             do_bringup();
-            microkit_irq_ack(ch);
+            sddf_irq_ack(ch);
         } else {
             LOG_DRIVER_ERR("notification on non-IRQ channel during bringup: %d\n", ch);
         }
@@ -1234,7 +1265,7 @@ void notified(microkit_channel ch)
 
     if (ch == device_resources.irqs[0].id) {
         handle_client(/* was_irq: */ true);
-        microkit_irq_ack(ch);
+        sddf_irq_ack(ch);
     } else if (ch == blk_config.virt.id) {
         handle_client(/* was_irq: */ false);
     } else if (ch == timer_config.driver_id) {

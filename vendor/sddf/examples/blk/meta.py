@@ -1,86 +1,205 @@
 # Copyright 2025, UNSW
 # SPDX-License-Identifier: BSD-2-Clause
+import os, sys
 import argparse
 from typing import List, Optional
 from dataclasses import dataclass
 from sdfgen import SystemDescription, Sddf, DeviceTree
 
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../tools/meta")
+)
+from board import BOARDS
+
 ProtectionDomain = SystemDescription.ProtectionDomain
 
 
-@dataclass
-class Board:
-    name: str
-    arch: SystemDescription.Arch
-    paddr_top: int
-    blk: str
-    # Default partition if the user has not specified one
-    partition: int
-    # Some block drivers need a timer driver as well, the example
-    # itself does not need a timer driver.
-    timer: Optional[str]
-
-
-BOARDS: List[Board] = [
-    Board(
-        name="qemu_virt_aarch64",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0x6_0000_000,
-        partition=0,
-        blk="virtio_mmio@a003e00",
-        timer=None,
-    ),
-    Board(
-        name="maaxboard",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0x7_0000_000,
-        partition=2,
-        blk="soc@0/bus@30800000/mmc@30b40000",
-        timer="soc@0/bus@30000000/timer@302d0000",
-    ),
-    Board(
-        name="qemu_virt_riscv64",
-        arch=SystemDescription.Arch.RISCV64,
-        paddr_top=0xa_0000_000,
-        partition=0,
-        blk="soc/virtio_mmio@10008000",
-        timer=None,
-    ),
-]
-
-
-def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
-    blk_driver = ProtectionDomain("blk_driver", "blk_driver.elf", priority=200)
-    blk_virt = ProtectionDomain("blk_virt", "blk_virt.elf", priority=199, stack_size=0x2000)
-    client = ProtectionDomain("client", "client.elf", priority=1)
-
-    blk_node = dtb.node(board.blk)
-    assert blk_node is not None
-    if board.timer:
+def generate(
+    sdf_file: str,
+    output_dir: str,
+    dtb: Optional[DeviceTree],
+    need_timer: bool,
+    nvme: bool,  # hack to select NVMe or Virtio
+):
+    uart_node = None
+    blk_node = None
+    timer_node = None
+    if dtb is not None:
+        uart_node = dtb.node(board.serial)
+        assert uart_node is not None
+        blk_node = dtb.node(board.blk)
+        assert blk_node is not None
         timer_node = dtb.node(board.timer)
         assert timer_node is not None
 
-        timer_driver = ProtectionDomain("timer_driver", "timer_driver.elf", priority=201)
+    serial_driver = ProtectionDomain("serial_driver", "serial_driver.elf", priority=200)
+    # Increase the stack size as running with UBSAN uses more stack space than normal.
+    serial_virt_tx = ProtectionDomain(
+        "serial_virt_tx", "serial_virt_tx.elf", priority=199
+    )
+
+    serial_system = Sddf.Serial(
+        sdf, uart_node, serial_driver, serial_virt_tx, enable_color=False
+    )
+
+    if board.arch == SystemDescription.Arch.X86_64:
+        serial_port = SystemDescription.IoPort(0x3F8, 8, 0)
+        serial_driver.add_ioport(serial_port)
+
+    blk_driver = ProtectionDomain(
+        "blk_driver", "blk_driver.elf", priority=200, stack_size=0x2000
+    )
+    blk_virt = ProtectionDomain(
+        "blk_virt", "blk_virt.elf", priority=199, stack_size=0x2000
+    )
+    client = ProtectionDomain("client", "client.elf", priority=1)
+
+    if need_timer:
+        timer_driver = ProtectionDomain(
+            "timer_driver", "timer_driver.elf", priority=201
+        )
         timer_system = sddf.Timer(sdf, timer_node, timer_driver)
         timer_system.add_client(blk_driver)
+        if board.arch == SystemDescription.Arch.X86_64:
+            hpet_irq = SystemDescription.IrqMsi(
+                pci_bus=0, pci_device=0, pci_func=0, vector=0, handle=0, id=0
+            )
+            timer_driver.add_irq(hpet_irq)
+
+            hpet_regs = SystemDescription.MemoryRegion(
+                sdf, "hpet_regs", 0x1000, paddr=0xFED00000
+            )
+            hpet_regs_map = SystemDescription.Map(
+                hpet_regs, 0x5000_0000, "rw", cached=False
+            )
+            timer_driver.add_map(hpet_regs_map)
+            sdf.add_mr(hpet_regs)
 
     blk_system = Sddf.Blk(sdf, blk_node, blk_driver, blk_virt)
     partition = int(args.partition) if args.partition else board.partition
     blk_system.add_client(client, partition=partition)
 
-    pds = [
-        blk_driver,
-        blk_virt,
-        client
-    ]
-    if board.timer:
+    if board.arch == SystemDescription.Arch.X86_64:
+        if nvme:
+            nvme_bar0_mr = SystemDescription.MemoryRegion(
+                sdf, "nvme_bar0", 0x4000, paddr=0xFEBD4000
+            )
+            sdf.add_mr(nvme_bar0_mr)
+            nvme_bar0_map = SystemDescription.Map(
+                nvme_bar0_mr, 0x20000000, "rw", cached=False
+            )
+            blk_driver.add_map(nvme_bar0_map)
+
+            # Queue descriptors accessed via DMA so we map these regions as uncached.
+            nvme_admin_sq_mr = SystemDescription.MemoryRegion(
+                sdf, "nvme_admin_sq", 0x1000, paddr=0x5FDF0000
+            )
+            sdf.add_mr(nvme_admin_sq_mr)
+            nvme_admin_sq_map = SystemDescription.Map(
+                nvme_admin_sq_mr, 0x20100000, "rw", cached=False
+            )
+            blk_driver.add_map(nvme_admin_sq_map)
+
+            nvme_admin_cq_mr = SystemDescription.MemoryRegion(
+                sdf, "nvme_admin_cq", 0x1000, paddr=0x5FDF1000
+            )
+            sdf.add_mr(nvme_admin_cq_mr)
+            nvme_admin_cq_map = SystemDescription.Map(
+                nvme_admin_cq_mr, 0x20101000, "rw", cached=False
+            )
+            blk_driver.add_map(nvme_admin_cq_map)
+
+            nvme_io_sq_mr = SystemDescription.MemoryRegion(
+                sdf, "nvme_io_sq", 0x1000, paddr=0x5FDF2000
+            )
+            sdf.add_mr(nvme_io_sq_mr)
+            nvme_io_sq_map = SystemDescription.Map(
+                nvme_io_sq_mr, 0x20102000, "rw", cached=False
+            )
+            blk_driver.add_map(nvme_io_sq_map)
+
+            nvme_io_cq_mr = SystemDescription.MemoryRegion(
+                sdf, "nvme_io_cq", 0x1000, paddr=0x5FDF3000
+            )
+            sdf.add_mr(nvme_io_cq_mr)
+            nvme_io_cq_map = SystemDescription.Map(
+                nvme_io_cq_mr, 0x20103000, "rw", cached=False
+            )
+            blk_driver.add_map(nvme_io_cq_map)
+
+            # PRP list region. Also accessed via DMA so map as uncached.
+            nvme_prp_list_mr = SystemDescription.MemoryRegion(
+                sdf, "nvme_prp_list", 0x80000, paddr=0x5FE00000
+            )
+            sdf.add_mr(nvme_prp_list_mr)
+            nvme_prp_list_map = SystemDescription.Map(
+                nvme_prp_list_mr, 0x20200000, "rw", cached=False
+            )
+            blk_driver.add_map(nvme_prp_list_map)
+
+            nvme_identify_mr = SystemDescription.MemoryRegion(
+                sdf, "nvme_identify", 0x2000, paddr=0x5FDF4000
+            )
+            sdf.add_mr(nvme_identify_mr)
+            nvme_identify_map = SystemDescription.Map(
+                nvme_identify_mr, 0x20104000, "rw"
+            )
+            blk_driver.add_map(nvme_identify_map)
+
+            # IRQ
+            nvme_irq = SystemDescription.IrqIoapic(ioapic_id=0, pin=10, vector=1, id=17)
+            blk_driver.add_irq(nvme_irq)
+
+        else:
+            blk_requests_mr = SystemDescription.MemoryRegion(
+                sdf, "virtio_requests", 65536, paddr=0x5FDF0000
+            )
+            sdf.add_mr(blk_requests_mr)
+            blk_requests_map = SystemDescription.Map(blk_requests_mr, 0x20200000, "rw")
+            blk_driver.add_map(blk_requests_map)
+
+            blk_virtio_metadata_mr = SystemDescription.MemoryRegion(
+                sdf, "virtio_metadata", 65536, paddr=0x5FFF0000
+            )
+            sdf.add_mr(blk_virtio_metadata_mr)
+            blk_virtio_metadata_map = SystemDescription.Map(
+                blk_virtio_metadata_mr, 0x20210000, "rw"
+            )
+            blk_driver.add_map(blk_virtio_metadata_map)
+
+            virtio_blk_regs = SystemDescription.MemoryRegion(
+                sdf, "virtio_blk_regs", 0x4000, paddr=0xFE000000
+            )
+            sdf.add_mr(virtio_blk_regs)
+            virtio_blk_regs_map = SystemDescription.Map(
+                virtio_blk_regs, 0x6000_0000, "rw", cached=False
+            )
+            blk_driver.add_map(virtio_blk_regs_map)
+
+            virtio_blk_irq = SystemDescription.IrqIoapic(
+                ioapic_id=0, pin=11, vector=1, id=17
+            )
+            blk_driver.add_irq(virtio_blk_irq)
+
+        pci_config_addr_port = SystemDescription.IoPort(0xCF8, 4, 1)
+        blk_driver.add_ioport(pci_config_addr_port)
+
+        pci_config_data_port = SystemDescription.IoPort(0xCFC, 4, 2)
+        blk_driver.add_ioport(pci_config_data_port)
+
+    serial_system.add_client(client)
+
+    pds = [serial_driver, serial_virt_tx, blk_driver, blk_virt, client]
+    if need_timer:
         pds += [timer_driver]
     for pd in pds:
         sdf.add_pd(pd)
 
     assert blk_system.connect()
     assert blk_system.serialise_config(output_dir)
-    if board.timer:
+    assert serial_system.connect()
+    assert serial_system.serialise_config(output_dir)
+    if need_timer:
         assert timer_system.connect()
         assert timer_system.serialise_config(output_dir)
 
@@ -88,13 +207,15 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
         f.write(sdf.render())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dtb", required=True)
+    parser.add_argument("--dtb", required=False)
     parser.add_argument("--sddf", required=True)
     parser.add_argument("--board", required=True, choices=[b.name for b in BOARDS])
     parser.add_argument("--output", required=True)
     parser.add_argument("--sdf", required=True)
+    parser.add_argument("--need_timer", action="store_true", default=False)
+    parser.add_argument("--nvme", action="store_true", default=False)
     parser.add_argument("--partition")
 
     args = parser.parse_args()
@@ -104,7 +225,9 @@ if __name__ == '__main__':
     sdf = SystemDescription(board.arch, board.paddr_top)
     sddf = Sddf(args.sddf)
 
-    with open(args.dtb, "rb") as f:
-        dtb = DeviceTree(f.read())
+    dtb = None
+    if board.arch != SystemDescription.Arch.X86_64:
+        with open(args.dtb, "rb") as f:
+            dtb = DeviceTree(f.read())
 
-    generate(args.sdf, args.output, dtb)
+    generate(args.sdf, args.output, dtb, args.need_timer, args.nvme)

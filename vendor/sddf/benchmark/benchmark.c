@@ -26,22 +26,28 @@ counter_bitfield_t benchmark_bf;
 
 serial_queue_handle_t serial_tx_queue_handle;
 
-char *counter_names[] = {
-    "L1 i-cache misses",
-    "L1 d-cache misses",
-    "L1 i-tlb misses",
-    "L1 d-tlb misses",
-    "Instructions",
-    "Branch mispredictions",
-};
+/**
+ * PMU event information fields.
+ */
+typedef struct {
+    const char *event_name; /* Description of the PMU event for result reporting. */
+    uint64_t sel4bench_id; /* PMU event identifier - platform specific, but we limit our PMU usage to ARM */
+} bench_pmu_event_info_t;
 
-event_id_t benchmarking_events[] = {
-    SEL4BENCH_EVENT_CACHE_L1I_MISS,
-    SEL4BENCH_EVENT_CACHE_L1D_MISS,
-    SEL4BENCH_EVENT_TLB_L1I_MISS,
-    SEL4BENCH_EVENT_TLB_L1D_MISS,
-    SEL4BENCH_EVENT_EXECUTE_INSTRUCTION,
-    SEL4BENCH_EVENT_BRANCH_MISPREDICT,
+/**
+ * PMU event lookup table. Entry i corresponds to bench_pmu_events_t enum value
+ * i, see bench.h
+ */
+bench_pmu_event_info_t pmu_event_table[] = {
+    { "L1 i-cache misses", SEL4BENCH_EVENT_CACHE_L1I_MISS },
+    { "L1 d-cache misses", SEL4BENCH_EVENT_CACHE_L1D_MISS },
+    { "L1 i-tlb misses", SEL4BENCH_EVENT_TLB_L1I_MISS },
+    { "L1 d-tlb misses", SEL4BENCH_EVENT_TLB_L1D_MISS },
+    { "Instructions", SEL4BENCH_EVENT_EXECUTE_INSTRUCTION },
+    { "Branch mispredictions", SEL4BENCH_EVENT_BRANCH_MISPREDICT },
+    { "CPU cycles", SEL4BENCH_EVENT_CCNT },
+    { "Data memory access", SEL4BENCH_EVENT_MEMORY_ACCESS },
+    { "Overflow counter", SEL4BENCH_EVENT_CHAIN },
 };
 
 static char *child_name(uint8_t child_id)
@@ -55,15 +61,6 @@ static char *child_name(uint8_t child_id)
 }
 
 #ifdef CONFIG_BENCHMARK_TRACK_UTILISATION
-static void start_benchmark(void)
-{
-    seL4_BenchmarkResetThreadUtilisation(TCB_CAP);
-    for (uint8_t i = 0; i < benchmark_config.num_children; i++) {
-        seL4_BenchmarkResetThreadUtilisation(BASE_TCB_CAP + benchmark_config.children[i].child_id);
-    }
-    seL4_BenchmarkResetLog();
-}
-
 static void print_total_util(uint64_t *buffer)
 {
     uint64_t total = buffer[BENCHMARK_TOTAL_UTILISATION];
@@ -86,16 +83,6 @@ static void print_child_util(uint64_t *buffer, uint8_t id)
                 child_name(id), id, kernel, entries, number_schedules, total);
 }
 
-static void stop_benchmark(void)
-{
-    seL4_BenchmarkFinalizeLog();
-    seL4_BenchmarkGetThreadUtilisation(TCB_CAP);
-    print_total_util((uint64_t *)&seL4_GetIPCBuffer()->msg[0]);
-    for (uint8_t i = 0; i < benchmark_config.num_children; i++) {
-        seL4_BenchmarkGetThreadUtilisation(BASE_TCB_CAP + benchmark_config.children[i].child_id);
-        print_child_util((uint64_t *)&seL4_GetIPCBuffer()->msg[0], benchmark_config.children[i].child_id);
-    }
-}
 #endif
 
 #ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
@@ -143,83 +130,24 @@ static void dump_log_summary(uint64_t log_size)
 }
 #endif
 
-
-void notified(microkit_channel ch)
+static void benchmark_init(void)
 {
-    if (ch == serial_config.tx.id) {
-        return;
-    } else if (ch == benchmark_config.start_ch) {
-#ifdef MICROKIT_CONFIG_benchmark
-        sel4bench_reset_counters();
-        THREAD_MEMORY_RELEASE();
-        sel4bench_start_counters(benchmark_bf);
-
-#ifdef CONFIG_BENCHMARK_TRACK_UTILISATION
-        start_benchmark();
+#if !ENABLE_BENCHMARKING
+    sddf_dprintf("BENCH|LOG: Bench running in debug mode, no access to counters\n");
+    return;
 #endif
 
-#ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
-        seL4_BenchmarkResetLog();
-#endif
-#endif
-    } else if (ch == benchmark_config.stop_ch) {
-#ifdef MICROKIT_CONFIG_benchmark
-        sel4bench_get_counters(benchmark_bf, &counter_values[0]);
-        sel4bench_stop_counters(benchmark_bf);
-
-        sddf_printf("{\n");
-        for (int i = 0; i < ARRAY_SIZE(benchmarking_events); i++) {
-            sddf_printf("%s: %lu\n", counter_names[i], counter_values[i]);
-        }
-        sddf_printf("}\n");
-#endif
-
-#ifdef CONFIG_BENCHMARK_TRACK_UTILISATION
-        stop_benchmark();
-#endif
-
-#ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
-        uint64_t entries = seL4_BenchmarkFinalizeLog();
-        sddf_printf("KernelEntries:  %lu\n", entries);
-        dump_log_summary(entries);
-#endif
-    } else {
-        sddf_printf("BENCH|LOG: Bench thread notified on unexpected channel %u\n", ch);
-    }
-}
-
-void init(void)
-{
-    serial_queue_init(&serial_tx_queue_handle, serial_config.tx.queue.vaddr, serial_config.tx.data.size,
-                      serial_config.tx.data.vaddr);
-    serial_putchar_init(serial_config.tx.id, &serial_tx_queue_handle);
-
-#ifdef MICROKIT_CONFIG_benchmark
-    sddf_printf("BENCH|LOG: MICROKIT_CONFIG_benchmark defined\n");
-#endif
-#ifdef CONFIG_BENCHMARK_TRACK_UTILISATION
-    sddf_printf("BENCH|LOG: CONFIG_BENCHMARK_TRACK_UTILISATION defined\n");
-#endif
-#ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
-    sddf_printf("BENCH|LOG: CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES defined\n");
-#endif
-
-#ifdef MICROKIT_CONFIG_benchmark
+#if ENABLE_PMU_EVENTS
     sel4bench_init();
     seL4_Word n_counters = sel4bench_get_num_counters();
-    for (seL4_Word counter = 0; counter < MIN(n_counters, ARRAY_SIZE(benchmarking_events)); counter++) {
-        sel4bench_set_count_event(counter, benchmarking_events[counter]);
+    for (seL4_Word counter = 0; counter < MIN(n_counters, benchmark_config.num_pmu_events); counter++) {
+        sel4bench_set_count_event(counter, pmu_event_table[benchmark_config.pmu_events[counter]].sel4bench_id);
         benchmark_bf |= BIT(counter);
     }
 
     sel4bench_reset_counters();
     sel4bench_start_counters(benchmark_bf);
-#else
-    sddf_dprintf("BENCH|LOG: Bench running in debug mode, no access to counters\n");
 #endif
-
-    /* Notify the idle thread that the sel4bench library is initialised. */
-    microkit_notify(benchmark_config.init_ch);
 
 #ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
     int res_buf = seL4_BenchmarkSetLogBuffer(LOG_BUFFER_CAP);
@@ -231,14 +159,166 @@ void init(void)
 #endif
 }
 
+static void benchmark_start(void)
+{
+#if !ENABLE_BENCHMARKING
+    sddf_printf("BENCHMARK: benchmark_start is no-op as benchmarking is disabled\n");
+    return;
+#endif
+
+#if ENABLE_PMU_EVENTS
+    sel4bench_reset_counters();
+    /* Reset the overflow status flag register so we can check for overflows to
+    32-bit counters during the benchmark */
+    PMU_WRITE(PMOVSCLR, 0b111111);
+    sel4bench_start_counters(benchmark_bf);
+#endif
+
+#ifdef CONFIG_BENCHMARK_TRACK_UTILISATION
+    seL4_BenchmarkResetThreadUtilisation(TCB_CAP);
+    for (uint8_t i = 0; i < benchmark_config.num_children; i++) {
+        seL4_BenchmarkResetThreadUtilisation(BASE_TCB_CAP + benchmark_config.children[i].child_id);
+    }
+    seL4_BenchmarkResetLog();
+#endif
+
+#ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
+    seL4_BenchmarkResetLog();
+#endif
+
+    /* Notify benchmark PD running on next core */
+    if (!benchmark_config.last_core) {
+        microkit_notify(benchmark_config.tx_start_ch);
+    }
+}
+
+static void benchmark_stop(void)
+{
+#if !ENABLE_BENCHMARKING
+    sddf_printf("BENCHMARK: benchmark_stop is no-op as benchmarking is disabled\n");
+    return;
+#endif
+
+    sddf_printf("BENCHMARK: begin output\n");
+    sddf_printf("---\n");
+
+#if ENABLE_PMU_EVENTS
+    sel4bench_get_counters(benchmark_bf, &counter_values[0]);
+    sel4bench_stop_counters(benchmark_bf);
+    /* Check the overflow status flag register so we can discard any 32-bit
+    counts which have overflowed */
+    uint64_t overflow_status;
+    PMU_READ(PMOVSCLR, overflow_status);
+
+    sddf_printf("{CORE %u: \n", benchmark_config.core);
+    uint8_t i = 0;
+    while (i < benchmark_config.num_pmu_events) {
+        if (i + 1 < benchmark_config.num_pmu_events && benchmark_config.pmu_events[i + 1] == CHAIN) {
+            sddf_printf("%s: %lu\n", pmu_event_table[benchmark_config.pmu_events[i]].event_name,
+                        counter_values[i] + (counter_values[i + 1] << 32));
+            i += 2;
+        } else {
+            if (overflow_status & 1 << i) {
+                sddf_printf("%s: Overflow occurred during benchmark, event count is invalid!\n",
+                            pmu_event_table[benchmark_config.pmu_events[i]].event_name);
+            } else {
+                sddf_printf("%s: %lu\n", pmu_event_table[benchmark_config.pmu_events[i]].event_name, counter_values[i]);
+            }
+            i += 1;
+        }
+    }
+    sddf_printf("}\n");
+#endif
+
+#ifdef CONFIG_BENCHMARK_TRACK_UTILISATION
+    seL4_BenchmarkFinalizeLog();
+    seL4_BenchmarkGetThreadUtilisation(TCB_CAP);
+    print_total_util((uint64_t *)&seL4_GetIPCBuffer()->msg[0]);
+    for (uint8_t i = 0; i < benchmark_config.num_children; i++) {
+        seL4_BenchmarkGetThreadUtilisation(BASE_TCB_CAP + benchmark_config.children[i].child_id);
+        print_child_util((uint64_t *)&seL4_GetIPCBuffer()->msg[0], benchmark_config.children[i].child_id);
+    }
+#endif
+
+#ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
+    uint64_t entries = seL4_BenchmarkFinalizeLog();
+    sddf_printf("KernelEntries:  %lu\n", entries);
+    dump_log_summary(entries);
+#endif
+
+    sddf_printf("---\n");
+    sddf_printf("BENCHMARK: end output\n");
+
+    /* Notify benchmark PD running on next core */
+    if (!benchmark_config.last_core) {
+        microkit_notify(benchmark_config.tx_stop_ch);
+    }
+}
+
+void notified(microkit_channel ch)
+{
+    if (ch == serial_config.tx.id) {
+        return;
+    } else if (ch == benchmark_config.rx_start_ch) {
+        benchmark_start();
+    } else if (ch == benchmark_config.rx_stop_ch) {
+        benchmark_stop();
+    } else {
+        sddf_printf("BENCH|LOG: Bench thread notified on unexpected channel %u\n", ch);
+    }
+}
+
+void init(void)
+{
+    serial_queue_init(&serial_tx_queue_handle, serial_config.tx.queue.vaddr, serial_config.tx.data.size,
+                      serial_config.tx.data.vaddr);
+    serial_putchar_init(serial_config.tx.id, &serial_tx_queue_handle);
+
+#if ENABLE_BENCHMARKING
+    sddf_printf("BENCH|LOG: ENABLE_BENCHMARKING defined\n");
+#endif
+#if ENABLE_PMU_EVENTS
+    sddf_printf("BENCH|LOG: ENABLE_PMU_EVENTS defined. Tracking PMU events:\n");
+    uint8_t event = 0, i = 0;
+    while (i < benchmark_config.num_pmu_events) {
+        if (i + 1 < benchmark_config.num_pmu_events && benchmark_config.pmu_events[i + 1] == CHAIN) {
+            sddf_printf("%u. %s (64-bit counter)\n", event, pmu_event_table[benchmark_config.pmu_events[i]].event_name);
+            i += 2;
+        } else {
+            sddf_printf("%u. %s (32-bit counter)\n", event, pmu_event_table[benchmark_config.pmu_events[i]].event_name);
+            i += 1;
+        }
+        event++;
+    }
+#endif
+#ifdef CONFIG_BENCHMARK_TRACK_UTILISATION
+    sddf_printf("BENCH|LOG: CONFIG_BENCHMARK_TRACK_UTILISATION defined\n");
+#endif
+#ifdef CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES
+    sddf_printf("BENCH|LOG: CONFIG_BENCHMARK_TRACK_KERNEL_ENTRIES defined\n");
+#endif
+
+    benchmark_init();
+    /* Notify the idle thread that the sel4bench library is initialised. */
+    microkit_notify(benchmark_config.init_ch);
+}
+
 seL4_Bool fault(microkit_child id, microkit_msginfo msginfo, microkit_msginfo *reply_msginfo)
 {
     sddf_printf("BENCH|LOG: Faulting PD %s (%d)\n", child_name(id), id);
 
     seL4_UserContext regs;
     seL4_TCB_ReadRegisters(BASE_TCB_CAP + id, false, 0, sizeof(seL4_UserContext) / sizeof(seL4_Word), &regs);
+#if defined(CONFIG_ARCH_ARM)
     sddf_printf("Registers: \npc : %lx\nspsr : %lx\nx0 : %lx\nx1 : %lx\nx2 : %lx\nx3 : %lx\nx4 : %lx\nx5 : %lx\nx6 : %lx\nx7 : %lx\n",
                 regs.pc, regs.spsr, regs.x0, regs.x1, regs.x2, regs.x3, regs.x4, regs.x5, regs.x6, regs.x7);
+#elif defined(CONFIG_ARCH_RISCV)
+    sddf_printf("Registers: \npc : %lx\nra : %lx\nsp : %lx\ngp : %lx\ns0 : %lx\ns1 : %lx\ns2 : %lx\ns3 : %lx\ns4 : "
+                "%lx\ns5 : %lx\n",
+                regs.pc, regs.ra, regs.sp, regs.gp, regs.s0, regs.s1, regs.s2, regs.s3, regs.s4, regs.s5);
+#else
+    sddf_printf("Register reading not implemented for current ARCH.\n");
+#endif
 
     switch (microkit_msginfo_get_label(msginfo)) {
     case seL4_Fault_CapFault: {
