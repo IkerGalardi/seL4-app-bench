@@ -24,7 +24,17 @@ SDDF_BIN=serial_driver.elf \
          serial_virt_rx.elf \
          serial_virt_tx.elf
 
-all: $(SDDF_BIN)
+all: loader.img
+
+MICROKIT_FLAGS =webserver.system
+MICROKIT_FLAGS+=--search-path ./build
+MICROKIT_FLAGS+=--board $(MICROKIT_BOARD)
+MICROKIT_FLAGS+=--config $(MICROKIT_CONFIG)
+MICROKIT_FLAGS+=-o $(IMG)
+MICROKIT_FLAGS+=-r $(IMG_REPORT)
+loader.img: $(SDDF_BIN) webserver.elf webserver.system
+	$(MICROKIT_TOOL) $(MICROKIT_FLAGS)
+
 
 include ../vendor/sddf/util/util.mk
 include ../vendor/sddf/drivers/serial/arm/serial_driver.mk
