@@ -1,0 +1,10 @@
+serial_driver.elf
+serial/arm/*.d
+serial/arm/*.o
+serial/components/*.d
+serial/components/*.o
+.serial_cflags-*
+
+libsddf_util_debug.a
+util/*.o
+util/custom_libc/*.o
