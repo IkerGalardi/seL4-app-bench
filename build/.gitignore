@@ -8,3 +8,8 @@ serial/components/*.o
 libsddf_util_debug.a
 util/*.o
 util/custom_libc/*.o
+
+eth_driver_virtio.elf
+network/virtio/mmio/*.o
+network/components/*.o
+.network_cflags-*

@@ -16,13 +16,17 @@ CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
        $(SDDF_INCLUDE) -Ivendor/sddf/network/ipstacks/lwip/src/include\
        -Wno-unused-function -Wno-unused-parameter -Ibuild/lwip/include \
        -Wno-sign-compare
-LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib
+LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -L.
 
-LIBS=--start-group -lmicrokit -Tmicrokit.ld --end-group
+LIBS=--start-group -lmicrokit -Tmicrokit.ld -lsddf_util_debug --end-group
 
 SDDF_BIN=serial_driver.elf \
          serial_virt_rx.elf \
-         serial_virt_tx.elf
+         serial_virt_tx.elf \
+         eth_driver_virtio.elf \
+         network_copy.elf \
+         network_virt_rx.elf \
+         network_virt_tx.elf
 
 all: loader.img
 
@@ -37,5 +41,9 @@ loader.img: $(SDDF_BIN) webserver.elf webserver.system
 
 
 include ../vendor/sddf/util/util.mk
+
 include ../vendor/sddf/drivers/serial/arm/serial_driver.mk
 include ../vendor/sddf/serial/components/serial_components.mk
+
+include ../vendor/sddf/drivers/network/virtio/mmio/eth_driver.mk
+include ../vendor/sddf/network/components/network_components.mk
