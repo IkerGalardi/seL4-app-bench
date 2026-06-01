@@ -13,3 +13,6 @@ eth_driver_virtio.elf
 network/virtio/mmio/*.o
 network/components/*.o
 .network_cflags-*
+
+lib_sddf_lwip_out
+lib_sddf_lwip.a

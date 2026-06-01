@@ -15,13 +15,15 @@ RANLIB=ranlib
 SDDF_CUSTOM_LIBC=1
 
 SDDF_INCLUDE=-I../vendor/sddf/include \
-             -I../vendor/sddf/include/microkit/
+             -I../vendor/sddf/include/microkit/ \
+             -I../vendor/sddf/network/ipstacks/lwip/src/include \
+             -Ilwip/include
 
 CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
        -I$(MICROKIT_BOARD_DIR)/include -DBOARD_$(MICROKIT_BOARD) \
        $(SDDF_INCLUDE) -Ivendor/sddf/network/ipstacks/lwip/src/include\
        -Wno-unused-function -Wno-unused-parameter -Ibuild/lwip/include \
-       -Wno-sign-compare
+       -Wno-sign-compare -Wno-implicit-function-declaration
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -L.
 
 LIBS=--start-group -lmicrokit -Tmicrokit.ld -lsddf_util_debug --end-group
@@ -53,3 +55,20 @@ include ../vendor/sddf/serial/components/serial_components.mk
 
 include ../vendor/sddf/drivers/network/virtio/mmio/eth_driver.mk
 include ../vendor/sddf/network/components/network_components.mk
+include ../vendor/sddf/network/lib_sddf_lwip/lib_sddf_lwip.mk
+
+WEBSERVER_OBJ=webserver/webserver.o \
+              webserver/fs.o \
+              webserver/httpd.o
+
+servers:
+	mkdir -p servers
+
+webserver/%.o: ../servers/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+webserver/%.o: ../vendor/sddf/network/ipstacks/lwip/src/apps/http/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+webserver.elf: $(WEBSERVER_OBJ) libsddf_util_debug.a lib_sddf_lwip.a
+	$(LD) $(WEBSERVER_OBJ) -o webserver.elf $(LDFLAGS) -l_sddf_lwip $(LIBS) $(LIBC_OBJ)
