@@ -34,7 +34,8 @@ SDDF_BIN=serial_driver.elf \
          eth_driver_virtio.elf \
          network_copy.elf \
          network_virt_rx.elf \
-         network_virt_tx.elf
+         network_virt_tx.elf \
+         timer_driver.elf
 
 all: loader.img
 
@@ -56,6 +57,8 @@ include ../vendor/sddf/serial/components/serial_components.mk
 include ../vendor/sddf/drivers/network/virtio/mmio/eth_driver.mk
 include ../vendor/sddf/network/components/network_components.mk
 include ../vendor/sddf/network/lib_sddf_lwip/lib_sddf_lwip.mk
+
+include ../vendor/sddf/drivers/timer/arm/timer_driver.mk
 
 WEBSERVER_OBJ=webserver/webserver.o \
               webserver/fs.o \
