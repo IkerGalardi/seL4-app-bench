@@ -6,6 +6,7 @@ serial/components/*.o
 .serial_cflags-*
 
 libsddf_util_debug.a
+libsddf_util.a
 util/*.o
 util/custom_libc/*.o
 
