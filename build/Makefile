@@ -31,6 +31,7 @@ CFLAGS=-nostdlib -ffreestanding -g -Wall -Wextra -mstrict-align \
 LDFLAGS=-L$(MICROKIT_BOARD_DIR)/lib -L.
 
 LIBS=--start-group -lmicrokit -Tmicrokit.ld -lsddf_util_debug --end-group
+LIBS_NODEBUG=-start-group -lmicrokit -Tmicrokit.ld -lsddf_util --end-group
 
 SDDF_BIN=serial_driver.elf \
          serial_virt_rx.elf \
@@ -74,8 +75,8 @@ webserver/%.o: ../servers/%.c
 webserver/%.o: ../vendor/sddf/network/ipstacks/lwip/src/apps/http/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
-webserver.elf: $(WEBSERVER_OBJ) libsddf_util_debug.a lib_sddf_lwip.a
-	$(LD) $(WEBSERVER_OBJ) -o webserver.elf $(LDFLAGS) -l_sddf_lwip $(LIBS) $(LIBC_OBJ)
+webserver.elf: $(WEBSERVER_OBJ) libsddf_util.a lib_sddf_lwip.a
+	$(LD) $(WEBSERVER_OBJ) -o webserver.elf $(LDFLAGS) -l_sddf_lwip $(LIBS_NODEBUG) $(LIBC_OBJ)
 
 webserver.system: ../meta.py qemuvirt.dtb
 	python3 ../meta.py core_config/$(CONFIG_NUM_CORES).json
