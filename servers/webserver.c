@@ -72,7 +72,7 @@ void init()
                       serial_config.tx.queue.vaddr,
                       serial_config.tx.data.size,
                       serial_config.tx.data.vaddr);
-    //serial_putchar_init(serial_config.tx.id, &serial_tx_queue_handle);
+    serial_putchar_init(serial_config.tx.id, &serial_tx_queue_handle);
 
     net_queue_init(&net_rx_handle, net_config.rx.free_queue.vaddr, net_config.rx.active_queue.vaddr,
                    net_config.rx.num_buffers);
@@ -88,7 +88,7 @@ void init()
 
     sddf_lwip_maybe_notify();
 
-    sddf_printf("WEBSERVER: initialized");
+    sddf_printf("WEBSERVER: initialized\n");
 
 }
 
