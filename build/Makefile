@@ -43,11 +43,8 @@ MICROKIT_FLAGS =webserver.system
 MICROKIT_FLAGS+=--search-path ./build
 MICROKIT_FLAGS+=--board $(MICROKIT_BOARD)
 MICROKIT_FLAGS+=--config $(MICROKIT_CONFIG)
-MICROKIT_FLAGS+=-o $(IMG)
-MICROKIT_FLAGS+=-r $(IMG_REPORT)
 loader.img: $(SDDF_BIN) webserver.elf webserver.system
-	$(MICROKIT_TOOL) $(MICROKIT_FLAGS)
-
+	$(MICROKIT_TOOL) $(MICROKIT_FLAGS) -o loader.img -r report.txt
 
 include ../vendor/sddf/util/util.mk
 
