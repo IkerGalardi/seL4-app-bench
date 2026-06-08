@@ -14,29 +14,29 @@ if len(sys.argv) != 2:
     exit(1)
 core_conf = json.loads(open(sys.argv[1]).read())
 
-sddf = Sddf("vendor/sddf")
+sddf = Sddf("../vendor/sddf")
 sdf = SystemDescription(Arch.AARCH64, 0x60000000)
 
 dtb = DeviceTree(open("qemuvirt.dtb", "rb").read())
 
-webserver = ProtectionDomain("webserver", "build/webserver.elf")
+webserver = ProtectionDomain("webserver", "webserver.elf")
 
 serial_node = dtb.node("pl011@9000000")
 serial_driver = ProtectionDomain(
     "serial_driver",
-    "build/serial_driver.elf",
+    "serial_driver.elf",
     priority=100,
     cpu=core_conf["serial_driver"],
 )
 serial_virt_tx = ProtectionDomain(
     "serial_virt_tx",
-    "build/serial_virt_tx.elf",
+    "serial_virt_tx.elf",
     priority=99,
     cpu=core_conf["serial_virt_tx"],
 )
 serial_virt_rx = ProtectionDomain(
     "serial_virt_rx",
-    "build/serial_virt_rx.elf",
+    "serial_virt_rx.elf",
     priority=99,
     cpu=core_conf["serial_virt_rx"],
 )
@@ -47,7 +47,7 @@ serial_system = Sddf.Serial(
 timer_node = dtb.node("timer")
 timer_driver = ProtectionDomain(
     "timer_driver",
-    "build/timer_driver.elf",
+    "timer_driver.elf",
     priority=101,
     cpu=core_conf["timer_driver"],
 )
@@ -56,27 +56,27 @@ timer_system = Sddf.Timer(sdf, timer_node, timer_driver)
 eth_node = dtb.node("virtio_mmio@a003e00")
 eth_driver = ProtectionDomain(
     "eth_driver",
-    "build/eth_driver.elf",
+    "eth_driver_virtio.elf",
     priority=101,
     budget=20000,
     cpu=core_conf["eth_driver"],
 )
 network_virt_tx = ProtectionDomain(
     "network_virt_tx",
-    "build/network_virt_tx.elf",
+    "network_virt_tx.elf",
     priority=100,
     budget=20000,
     cpu=core_conf["network_virt_tx"],
 )
 network_virt_rx = ProtectionDomain(
     "network_virt_rx",
-    "build/network_virt_rx.elf",
+    "network_virt_rx.elf",
     priority=99,
     cpu=core_conf["network_virt_rx"],
 )
 network_copy = ProtectionDomain(
     "network_copy",
-    "build/network_copy.elf",
+    "network_copy.elf",
     priority=97,
     budget=20000,
     cpu=core_conf["network_copy"],
@@ -99,13 +99,13 @@ serial_system.add_client(webserver)
 network_system.add_client_with_copier(webserver, network_copy)
 
 assert serial_system.connect()
-assert serial_system.serialise_config("build/")
+assert serial_system.serialise_config(".")
 assert timer_system.connect()
-assert timer_system.serialise_config("build/")
+assert timer_system.serialise_config(".")
 assert liblwip.connect()
-assert liblwip.serialise_config("build/")
+assert liblwip.serialise_config(".")
 assert network_system.connect()
-assert network_system.serialise_config("build/")
+assert network_system.serialise_config(".")
 
 
 with open("webserver.system", "w") as f:
