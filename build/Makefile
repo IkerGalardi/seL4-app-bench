@@ -1,3 +1,5 @@
+CONFIG_NUM_CORES=1
+
 MICROKIT_PATH=../vendor/microkit-sdk
 MICROKIT_BOARD=qemu_virt_aarch64
 MICROKIT_CONFIG=release
@@ -13,6 +15,8 @@ OBJCOPY=$(TOOLCHAIN_PREFIX)-objcopy
 SDDF=../vendor/sddf
 RANLIB=ranlib
 SDDF_CUSTOM_LIBC=1
+
+VIRTIO_DISCOVER=../vendor/VirtioDiscover-Aarch64-Loader-Off0x70000000.img
 
 SDDF_INCLUDE=-I../vendor/sddf/include \
              -I../vendor/sddf/include/microkit/ \
@@ -89,3 +93,29 @@ webserver.system: ../meta.py qemuvirt.dtb
 	$(OBJCOPY) --update-section .net_copy_config=net_copy_network_copy.data network_copy.elf
 	$(OBJCOPY) --update-section .device_resources=timer_driver_device_resources.data timer_driver.elf
 	$(OBJCOPY) --update-section .timer_client_config=timer_client_webserver.data webserver.elf
+
+QEMU_MACHINE=-machine virt,virtualization=on
+QEMU_FLAGS =-cpu $(TOOLCHAIN_CPU)
+QEMU_FLAGS+=-nographic
+QEMU_FLAGS+=-serial mon:stdio
+QEMU_FLAGS+=-m size=2G
+QEMU_FLAGS+=-smp $(CONFIG_NUM_CORES)
+QEMU_FLAGS+=-netdev user,id=mynet0,hostfwd=tcp::80-:80
+QEMU_FLAGS+=-device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
+QEMU_FLAGS+=-global virtio-mmio.force-legacy=false
+QEMU_FLAGS+=-accel tcg
+
+QEMU_FLAGS_SEL4=-device loader,file=loader.img,addr=0x70000000,cpu-num=0
+QEMU_FLAGS_DISCOVER=-device loader,file=$(VIRTIO_DISCOVER),addr=0x70000000,cpu-num=0
+
+qemuvirt.dtb:
+	qemu-system-aarch64 $(QEMU_MACHINE),dumpdtb=qemuvirt.dtb $(QEMU_FLAGS)
+
+qemu: loader.img
+	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_SEL4)
+
+$(VIRTIO_DISCOVER):
+	wget https://github.com/IkerGalardi/VirtioDiscover/releases/download/v0.1.0/VirtioDiscover-Aarch64-Loader-Off0x70000000.img -O $(VIRTIO_DISCOVER)
+
+virtio-discover: $(VIRTIO_DISCOVER)
+	@ timeout -f --preserve-status 1s qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_DISCOVER) 2> /dev/null
