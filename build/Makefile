@@ -72,3 +72,20 @@ webserver/%.o: ../vendor/sddf/network/ipstacks/lwip/src/apps/http/%.c
 
 webserver.elf: $(WEBSERVER_OBJ) libsddf_util_debug.a lib_sddf_lwip.a
 	$(LD) $(WEBSERVER_OBJ) -o webserver.elf $(LDFLAGS) -l_sddf_lwip $(LIBS) $(LIBC_OBJ)
+
+webserver.system: ../meta.py qemuvirt.dtb
+	python3 ../meta.py core_config/$(CONFIG_NUM_CORES).json
+	$(OBJCOPY) --update-section .device_resources=serial_driver_device_resources.data serial_driver.elf
+	$(OBJCOPY) --update-section .serial_driver_config=serial_driver_config.data serial_driver.elf
+	$(OBJCOPY) --update-section .serial_virt_tx_config=serial_virt_tx.data serial_virt_tx.elf
+	$(OBJCOPY) --update-section .serial_virt_rx_config=serial_virt_rx.data serial_virt_rx.elf
+	$(OBJCOPY) --update-section .serial_client_config=serial_client_webserver.data webserver.elf
+	$(OBJCOPY) --update-section .net_client_config=net_client_webserver.data webserver.elf
+	$(OBJCOPY) --update-section .lib_sddf_lwip_config=lib_sddf_lwip_config_webserver.data webserver.elf
+	$(OBJCOPY) --update-section .net_driver_config=net_driver.data eth_driver_virtio.elf
+	$(OBJCOPY) --update-section .device_resources=eth_driver_device_resources.data eth_driver_virtio.elf
+	$(OBJCOPY) --update-section .net_virt_tx_config=net_virt_tx.data network_virt_tx.elf
+	$(OBJCOPY) --update-section .net_virt_rx_config=net_virt_rx.data network_virt_rx.elf
+	$(OBJCOPY) --update-section .net_copy_config=net_copy_network_copy.data network_copy.elf
+	$(OBJCOPY) --update-section .device_resources=timer_driver_device_resources.data timer_driver.elf
+	$(OBJCOPY) --update-section .timer_client_config=timer_client_webserver.data webserver.elf
