@@ -331,7 +331,9 @@ void console_setup()
     assert((uintptr_t)tx_virtq.used % 4 == 0);
 
     /* Load the Rx queue with free buffers */
-    rx_provide();
+    if (config.rx_enabled) {
+        rx_provide();
+    }
 
     // Setup RX queue first
     assert(uart_regs->QueueNumMax >= RX_COUNT);
@@ -366,14 +368,17 @@ static void handle_irq()
 {
     uint32_t irq_status = uart_regs->InterruptStatus;
     if (irq_status & VIRTIO_MMIO_IRQ_VQUEUE) {
+        // ACK the interrupt first before handling responses
+        uart_regs->InterruptACK = VIRTIO_MMIO_IRQ_VQUEUE;
+
         // We don't know whether the IRQ is related to a change to the RX queue
         // or TX queue, so we check both.
-        rx_return();
-        rx_provide(); // Refill the virtio Rx queue
+        if (config.rx_enabled) {
+            rx_return();
+            rx_provide(); // Refill the virtio Rx queue
+        }
         tx_return();
         tx_provide();
-        // We have handled the used buffer notification
-        uart_regs->InterruptACK = VIRTIO_MMIO_IRQ_VQUEUE;
     }
 
     if (irq_status & VIRTIO_MMIO_IRQ_CONFIG) {

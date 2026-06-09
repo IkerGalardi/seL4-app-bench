@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <microkit.h>
+#include <os/sddf.h>
 #include <sddf/resources/device.h>
 #include <sddf/network/queue.h>
 #include <sddf/network/config.h>
@@ -66,10 +66,10 @@ static void update_ring_slot(hw_ring_t *ring, unsigned int idx, uintptr_t phys,
     d->addr = phys;
     d->len = len;
 
-    /* Ensure all writes to the descriptor complete, before we set the flags
+    /* Ensure all writes to the descriptor are ordered before we set the flags
      * that makes hardware aware of this slot.
      */
-    THREAD_MEMORY_RELEASE();
+    wwmb();
     d->stat = stat;
 }
 
@@ -88,8 +88,15 @@ static void rx_provide(void)
                 stat |= WRAP;
             }
             update_ring_slot(&rx, idx, buffer.io_or_offset, 0, stat);
-            rx.tail++;
+
+            /* The following barrier orders the write to the 'rdar' MMIO register to be after the write to
+             * the 'stat' field of the descriptor in function update_ring_slot().
+             */
+            wwmb();
+
             eth->rdar = RDAR_RDAR;
+
+            rx.tail++;
         }
 
         /* Only request a notification from virtualiser if HW ring not full */
@@ -118,7 +125,11 @@ static void rx_return(void)
             break;
         }
 
-        THREAD_MEMORY_ACQUIRE();
+        /*
+         * The following barrier orders the following reads from the descriptor to be after
+         * the read to the 'stat' field of the descriptor.
+         */
+        rrmb();
 
         net_buff_desc_t buffer = { d->addr, d->len };
         int err = net_enqueue_active(&rx_queue, buffer);
@@ -130,7 +141,7 @@ static void rx_return(void)
 
     if (packets_transferred && net_require_signal_active(&rx_queue)) {
         net_cancel_signal_active(&rx_queue);
-        microkit_notify(config.virt_rx.id);
+        sddf_notify(config.virt_rx.id);
     }
 }
 
@@ -149,8 +160,15 @@ static void tx_provide(void)
                 stat |= WRAP;
             }
             update_ring_slot(&tx, idx, buffer.io_or_offset, buffer.len, stat);
-            tx.tail++;
+
+            /* The following barrier orders the write to the 'tdar' MMIO register to be after the write to
+             * the 'stat' fields of the descriptors updated in function update_ring_slot().
+             */
+            wwmb();
+
             eth->tdar = TDAR_TDAR;
+
+            tx.tail++;
         }
 
         net_request_signal_active(&tx_queue);
@@ -174,7 +192,11 @@ static void tx_return(void)
             break;
         }
 
-        THREAD_MEMORY_ACQUIRE();
+        /*
+         * The following barrier orders the following reads from the descriptor to be after
+         * the read from the 'stat' field of the descriptor.
+         */
+        rrmb();
 
         net_buff_desc_t buffer = { d->addr, 0 };
         int err = net_enqueue_free(&tx_queue, buffer);
@@ -186,7 +208,7 @@ static void tx_return(void)
 
     if (enqueued && net_require_signal_free(&tx_queue)) {
         net_cancel_signal_free(&tx_queue);
-        microkit_notify(config.virt_tx.id);
+        sddf_notify(config.virt_tx.id);
     }
 }
 
@@ -317,15 +339,15 @@ void init(void)
     tx_provide();
 }
 
-void notified(microkit_channel ch)
+void notified(sddf_channel ch)
 {
     if (ch == device_resources.irqs[0].id) {
         handle_irq();
         /*
          * Delay calling into the kernel to ack the IRQ until the next loop
-         * in the microkit event handler loop.
+         * in the event handler loop.
          */
-        microkit_deferred_irq_ack(ch);
+        sddf_deferred_irq_ack(ch);
     } else if (ch == config.virt_rx.id) {
         rx_provide();
     } else if (ch == config.virt_tx.id) {

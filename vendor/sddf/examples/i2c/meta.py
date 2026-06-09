@@ -1,56 +1,49 @@
 # Copyright 2025, UNSW
 # SPDX-License-Identifier: BSD-2-Clause
+import os, sys
 import argparse
 from typing import List
 from dataclasses import dataclass
 from sdfgen import SystemDescription, Sddf, DeviceTree
+
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../tools/meta")
+)
+from board import BOARDS
 
 ProtectionDomain = SystemDescription.ProtectionDomain
 MemoryRegion = SystemDescription.MemoryRegion
 Map = SystemDescription.Map
 
 
-@dataclass
-class Board:
-    name: str
-    arch: SystemDescription.Arch
-    paddr_top: int
-    i2c: str
-    timer: str
-
-
-BOARDS: List[Board] = [
-    Board(
-        name="odroidc4",
-        arch=SystemDescription.Arch.AARCH64,
-        paddr_top=0x80000000,
-        i2c="soc/bus@ffd00000/i2c@1d000",
-        timer="soc/bus@ffd00000/watchdog@f0d0",
-    ),
-]
-
-
 def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
+    serial_driver = ProtectionDomain("serial_driver", "serial_driver.elf", priority=200)
+    serial_virt_tx = ProtectionDomain(
+        "serial_virt_tx", "serial_virt_tx.elf", priority=199
+    )
+
     timer_driver = ProtectionDomain("timer_driver", "timer_driver.elf", priority=4)
     i2c_driver = ProtectionDomain("i2c_driver", "i2c_driver.elf", priority=3)
     i2c_virt = ProtectionDomain("i2c_virt", "i2c_virt.elf", priority=2)
     client_pn532 = ProtectionDomain("client_pn532", "client_pn532.elf", priority=1)
     client_ds3231 = ProtectionDomain("client_ds3231", "client_ds3231.elf", priority=1)
 
-    # Right now we do not have separate clk and GPIO drivers and so our I2C driver does manual
-    # clk/GPIO setup for I2C.
-    clk_mr = MemoryRegion("clk", 0x1000, paddr=0xff63c000)
-    gpio_mr = MemoryRegion("gpio", 0x1000, paddr=0xff634000)
-    sdf.add_mr(clk_mr)
-    sdf.add_mr(gpio_mr)
-
-    i2c_driver.add_map(Map(clk_mr, 0x30_000_000, "rw", cached=False))
-    i2c_driver.add_map(Map(gpio_mr, 0x30_100_000, "rw", cached=False))
+    if board.name == "odroidc4":
+        # Odroid-C4 I2C requires clocks/GPIO setup, for now we give the I2C driver
+        # direct access.
+        clk_mr = MemoryRegion(sdf, "clk", 0x1000, paddr=0xFF63C000)
+        gpio_mr = MemoryRegion(sdf, "gpio", 0x1000, paddr=0xFF634000)
+        sdf.add_mr(clk_mr)
+        sdf.add_mr(gpio_mr)
+        i2c_driver.add_map(Map(clk_mr, 0x30_000_000, "rw", cached=False))
+        i2c_driver.add_map(Map(gpio_mr, 0x30_100_000, "rw", cached=False))
 
     i2c_node = dtb.node(board.i2c)
     assert i2c_node is not None
     timer_node = dtb.node(board.timer)
     assert timer_node is not None
+    serial_node = dtb.node(board.serial)
+    assert serial_node is not None
 
     i2c_system = Sddf.I2c(sdf, i2c_node, i2c_driver, i2c_virt)
     i2c_system.add_client(client_ds3231)
@@ -60,7 +53,15 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
     timer_system.add_client(client_pn532)
     timer_system.add_client(client_ds3231)
 
+    serial_system = Sddf.Serial(
+        sdf, serial_node, serial_driver, serial_virt_tx, enable_color=False
+    )
+    serial_system.add_client(client_pn532)
+    serial_system.add_client(client_ds3231)
+
     pds = [
+        serial_driver,
+        serial_virt_tx,
         timer_driver,
         i2c_driver,
         i2c_virt,
@@ -72,6 +73,8 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
 
     assert i2c_system.connect()
     assert i2c_system.serialise_config(output_dir)
+    assert serial_system.connect()
+    assert serial_system.serialise_config(output_dir)
     assert timer_system.connect()
     assert timer_system.serialise_config(output_dir)
 
@@ -79,7 +82,7 @@ def generate(sdf_file: str, output_dir: str, dtb: DeviceTree):
         f.write(sdf.render())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dtb", required=True)
     parser.add_argument("--sddf", required=True)

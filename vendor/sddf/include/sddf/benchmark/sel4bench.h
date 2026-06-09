@@ -22,6 +22,9 @@ The definitions are specific to ARMv8 - different definitions will need to used 
 #define SEL4BENCH_EVENT_TLB_L1D_MISS                0x05
 #define SEL4BENCH_EVENT_EXECUTE_INSTRUCTION         0x08
 #define SEL4BENCH_EVENT_BRANCH_MISPREDICT           0x10
+#define SEL4BENCH_EVENT_CCNT                        0x11
+#define SEL4BENCH_EVENT_MEMORY_ACCESS               0x13
+#define SEL4BENCH_EVENT_CHAIN                       0x1E
 
 /* Armv8 constants. */
 #define SEL4BENCH_ARMV8A_COUNTER_CCNT 31
@@ -58,6 +61,7 @@ typedef uint64_t ccnt_t;
 #define PMSELR      "PMSELR_EL0"
 #define PMXEVTYPER  "PMXEVTYPER_EL0"
 #define PMCCNTR     "PMCCNTR_EL0"
+#define PMOVSCLR    "PMOVSCLR_EL0"
 
 #define PMU_WRITE(reg, v)                      \
     do {                                       \
@@ -76,9 +80,9 @@ static FASTFN void sel4bench_private_write_pmcr(uint32_t val)
 
 static FASTFN uint32_t sel4bench_private_read_pmcr(void)
 {
-    uint32_t val;
+    uint64_t val;
     PMU_READ(PMCR, val);
-    return val;
+    return (uint32_t)val;
 }
 
 #define MODIFY_PMCR(op, val) sel4bench_private_write_pmcr(sel4bench_private_read_pmcr() op (val))
@@ -90,9 +94,9 @@ static FASTFN void sel4bench_private_write_cntens(uint32_t mask)
 
 static FASTFN uint32_t sel4bench_private_read_cntens(void)
 {
-    uint32_t mask;
+    uint64_t mask;
     PMU_READ(PMCNTENSET, mask);
-    return mask;
+    return (uint32_t)mask;
 }
 
 static FASTFN void sel4bench_private_write_cntenc(uint32_t mask)
@@ -102,9 +106,9 @@ static FASTFN void sel4bench_private_write_cntenc(uint32_t mask)
 
 static FASTFN uint32_t sel4bench_private_read_pmcnt(void)
 {
-    uint32_t val;
+    uint64_t val;
     PMU_READ(PMXEVCNTR, val);
-    return val;
+    return (uint32_t)val;
 }
 
 static FASTFN void sel4bench_private_write_pmcnt(uint32_t val)

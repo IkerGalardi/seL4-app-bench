@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <microkit.h>
+#include <os/sddf.h>
 #include <sddf/resources/device.h>
 #include <sddf/network/queue.h>
 #include <sddf/network/config.h>
@@ -23,9 +23,6 @@ __attribute__((__section__(".net_driver_config"))) net_driver_config_t config;
 #define RX_COUNT 256
 #define TX_COUNT 256
 #define MAX_COUNT MAX(RX_COUNT, TX_COUNT)
-
-/* The same as Linux's default for pause frame timeout */
-const uint32_t pause_time = 0xffff;
 
 struct descriptor {
     uint32_t status;
@@ -67,10 +64,10 @@ static void update_ring_slot(hw_ring_t *ring, unsigned int idx, uint32_t status,
     d->addr = phys;
     d->next = next;
     d->cntl = cntl;
-    /* Ensure all writes to the descriptor complete, before we set the flags
+    /* Ensure all writes to the descriptor are ordered before we set the flags
      * that makes hardware aware of this slot.
      */
-    THREAD_MEMORY_RELEASE();
+    wwmb();
     d->status = status;
 }
 
@@ -90,8 +87,6 @@ static void rx_provide()
             }
 
             update_ring_slot(&rx, idx, DESC_RXSTS_OWNBYDMA, cntl, buffer.io_or_offset, 0);
-            eth_dma->rxpolldemand = POLL_DATA;
-
             rx.tail++;
         }
 
@@ -103,11 +98,21 @@ static void rx_provide()
             reprocess = true;
         }
     }
+
+    /*
+     * The following barrier orders the write to the DMA register to be after
+     * the writes to the 'status' fields of the descriptors updated in function
+     * update_ring_slot().
+     */
+    wwmb();
+
+    eth_dma->rxpolldemand = POLL_DATA;
 }
 
 static void rx_return(void)
 {
     bool packets_transferred = false;
+    bool error = false;
     while (!hw_ring_empty(&rx)) {
         /* If buffer slot is still empty, we have processed all packets the device has filled */
         uint32_t idx = rx.head % rx.capacity;
@@ -116,7 +121,11 @@ static void rx_return(void)
             break;
         }
 
-        THREAD_MEMORY_ACQUIRE();
+        /*
+         * The following barrier orders the following reads from the descriptor to be after
+         * the read from the 'status' field of the descriptor.
+         */
+        rrmb();
 
         if (d->status & DESC_RXSTS_ERROR) {
             sddf_dprintf("ETH|ERROR: RX descriptor returned with error status %x\n", d->status);
@@ -127,8 +136,8 @@ static void rx_return(void)
             }
 
             update_ring_slot(&rx, idx, DESC_RXSTS_OWNBYDMA, cntl, d->addr, 0);
-            eth_dma->rxpolldemand = POLL_DATA;
             rx.tail++;
+            error = true;
         } else {
             net_buff_desc_t buffer = { d->addr, (d->status & DESC_RXSTS_LENMSK) >> DESC_RXSTS_LENSHFT };
             int err = net_enqueue_active(&rx_queue, buffer);
@@ -140,7 +149,19 @@ static void rx_return(void)
 
     if (packets_transferred && net_require_signal_active(&rx_queue)) {
         net_cancel_signal_active(&rx_queue);
-        microkit_notify(config.virt_rx.id);
+        sddf_notify(config.virt_rx.id);
+    }
+
+    if (error) {
+
+        /*
+        * The following barrier orders the write to the DMA register to be after
+        * the writes to the 'status' fields of the descriptors updated in function
+        * update_ring_slot().
+        */
+        wwmb();
+
+        eth_dma->rxpolldemand = POLL_DATA;
     }
 }
 
@@ -159,6 +180,9 @@ static void tx_provide(void)
             if (idx + 1 == tx.capacity) {
                 cntl |= DESC_TXCTRL_TXRINGEND;
             }
+#if defined(CONFIG_PLAT_ODROIDC4) || defined(CONFIG_PLAT_ODROIDC2)
+            cntl |= DESC_TXCTRL_TXCIC;
+#endif
             update_ring_slot(&tx, idx, DESC_TXSTS_OWNBYDMA, cntl, buffer.io_or_offset, 0);
 
             tx.tail++;
@@ -172,6 +196,12 @@ static void tx_provide(void)
             reprocess = true;
         }
     }
+
+    /* The following barrier orders the write to the DMA register to be after the write to
+     * the 'status' fields of the descriptors updated in function update_ring_slot().
+     */
+    wwmb();
+
     eth_dma->txpolldemand = POLL_DATA;
 }
 
@@ -186,7 +216,11 @@ static void tx_return(void)
             break;
         }
 
-        THREAD_MEMORY_ACQUIRE();
+        /*
+         * The following barrier orders the following reads to the descriptor to be after
+         * the read to the 'status' field of the descriptor.
+         */
+        rrmb();
 
         net_buff_desc_t buffer = { d->addr, 0 };
         int err = net_enqueue_free(&tx_queue, buffer);
@@ -197,7 +231,7 @@ static void tx_return(void)
 
     if (enqueued && net_require_signal_free(&tx_queue)) {
         net_cancel_signal_free(&tx_queue);
-        microkit_notify(config.virt_tx.id);
+        sddf_notify(config.virt_tx.id);
     }
 }
 
@@ -207,12 +241,12 @@ static void handle_irq()
     eth_dma->status &= e;
 
     while (e & DMA_INTR_MASK) {
-        if (e & DMA_INTR_RXF) {
-            rx_return();
-        }
         if (e & DMA_INTR_TXF) {
             tx_return();
             tx_provide();
+        }
+        if (e & DMA_INTR_RXF) {
+            rx_return();
         }
         if (e & DMA_INTR_ABNORMAL) {
             if (e & DMA_INTR_FBE) {
@@ -251,24 +285,28 @@ static void eth_setup(void)
     eth_mac->macaddr0lo = l;
     eth_mac->macaddr0hi = h;
 
-    eth_dma->busmode = PRIORXTX_11 | ((DMA_PBL << TX_PBL_SHFT) & TX_PBL_MASK);
+#if defined(CONFIG_PLAT_ODROIDC4) || defined(CONFIG_PLAT_ODROIDC2)
+    /*
+     * Odroid-C4 uses the S905X3 SoC, whose ethernet MAC has a 4KB RX FIFO and a 2KB TX FIFO
+     * and uses a 32-bit AHB bus. Odroid-C2 has the same hardware configuration.
+     * We use the maximum allowed TxPBL value here (128 = 16 * 8),
+     * in which [2048 - (128 + 3) * (32 / 8) = 1524 > packet size] to avoid dead-lock.
+     * The RxPBL value here is also the maximum value (256 = 32 * 8).
+     */
+    eth_dma->busmode = PRIORXTX_11 | DMA_PBL_X | USE_SEP_PBL | ((32 << RX_PBL_SHFT) & RX_PBL_MASK)
+                     | ((16 << TX_PBL_SHFT) & TX_PBL_MASK);
+#endif
     /*
      * Operate in store-and-forward mode.
-     * Send pause frames when there's only 1k of fifo left,
-     * stop sending them when there is 2k of fifo left.
      * Continue DMA on 2nd frame while updating status on first
      */
-    eth_dma->opmode = STOREFORWARD | EN_FLOWCTL | (0 << FLOWCTL_SHFT) | (1 < DISFLOWCTL_SHFT) | TX_OPSCND;
-    eth_mac->conf = FULLDPLXMODE;
+    eth_dma->opmode = RX_STOREFORWARD | TX_STOREFORWARD | TX_OPSCND;
+    eth_mac->conf = FULLDPLXMODE | IP_CHK_OFFLD;
 
     eth_dma->rxdesclistaddr = device_resources.regions[1].io_addr;
     eth_dma->txdesclistaddr = device_resources.regions[2].io_addr;
 
     eth_mac->framefilt |= PMSCUOUS_MODE;
-
-    uint32_t flow_ctrl = GMAC_FLOW_CTRL_UP | GMAC_FLOW_CTRL_RFE | GMAC_FLOW_CTRL_TFE;
-    flow_ctrl |= (pause_time << GMAC_FLOW_CTRL_PT_SHIFT);
-    eth_mac->flowcontrol = flow_ctrl;
 }
 
 void init(void)
@@ -300,15 +338,13 @@ void init(void)
     /* We are ready to receive. Enable. */
     eth_mac->conf |= RX_ENABLE | TX_ENABLE;
     eth_dma->opmode |= TXSTART | RXSTART;
-
-    microkit_irq_ack(device_resources.irqs[0].id);
 }
 
-void notified(microkit_channel ch)
+void notified(sddf_channel ch)
 {
     if (ch == device_resources.irqs[0].id) {
         handle_irq();
-        microkit_deferred_irq_ack(ch);
+        sddf_deferred_irq_ack(ch);
     } else if (ch == config.virt_rx.id) {
         rx_provide();
     } else if (ch == config.virt_tx.id) {
