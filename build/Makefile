@@ -48,8 +48,9 @@ MICROKIT_FLAGS =webserver.system
 MICROKIT_FLAGS+=--search-path ./build
 MICROKIT_FLAGS+=--board $(MICROKIT_BOARD)
 MICROKIT_FLAGS+=--config $(MICROKIT_CONFIG)
-loader.img: $(SDDF_BIN) webserver.elf webserver.system
-	$(MICROKIT_TOOL) $(MICROKIT_FLAGS) -o loader.img -r report.txt
+
+webserver.img: $(SDDF_BIN) webserver.elf webserver.system
+	$(MICROKIT_TOOL) $(MICROKIT_FLAGS) -o webserver.img -r webserver.txt
 
 include ../vendor/sddf/util/util.mk
 
@@ -103,14 +104,14 @@ QEMU_FLAGS+=-device virtio-net-device,netdev=mynet0,mac=52:55:00:d1:55:01
 QEMU_FLAGS+=-global virtio-mmio.force-legacy=false
 QEMU_FLAGS+=-accel kvm
 
-QEMU_FLAGS_SEL4=-device loader,file=loader.img,addr=0x70000000,cpu-num=0
+QEMU_FLAGS_WEBSERVER=-device loader,file=webserver.img,addr=0x70000000,cpu-num=0
 QEMU_FLAGS_DISCOVER=-device loader,file=$(VIRTIO_DISCOVER),addr=0x70000000,cpu-num=0
 
 qemuvirt.dtb:
 	qemu-system-aarch64 $(QEMU_MACHINE),dumpdtb=qemuvirt.dtb $(QEMU_FLAGS)
 
-qemu: loader.img
-	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_SEL4)
+qemu-webserver: webserver.img
+	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_WEBSERVER)
 
 $(VIRTIO_DISCOVER):
 	wget https://github.com/IkerGalardi/VirtioDiscover/releases/download/v0.1.0/VirtioDiscover-Aarch64-Loader-Off0x70000000.img -O $(VIRTIO_DISCOVER)

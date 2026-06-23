@@ -17,3 +17,6 @@ network/components/*.o
 
 lib_sddf_lwip_out
 lib_sddf_lwip.a
+
+webserver.img
+webserver.txt
