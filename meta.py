@@ -9,17 +9,20 @@ Map = SystemDescription.Map
 Channel = SystemDescription.Channel
 Arch = SystemDescription.Arch
 
-if len(sys.argv) != 2:
-    print("META: please provide a core configuration")
+if len(sys.argv) != 3:
+    print("meta.py: usage: ./meta.py <core_config> <echoserver|webserver>")
     exit(1)
 core_conf = json.loads(open(sys.argv[1]).read())
+subproject = sys.argv[2]
+
+assert subproject == "echoserver" or subproject == "webserver"
 
 sddf = Sddf("../vendor/sddf")
 sdf = SystemDescription(Arch.AARCH64, 0x60000000)
 
 dtb = DeviceTree(open("qemuvirt.dtb", "rb").read())
 
-webserver = ProtectionDomain("webserver", "webserver.elf")
+netserver = ProtectionDomain("netserver", subproject + ".elf")
 
 serial_node = dtb.node("pl011@9000000")
 serial_driver = ProtectionDomain(
@@ -82,7 +85,7 @@ network_copy = ProtectionDomain(
     cpu=core_conf["network_copy"],
 )
 network_system = Sddf.Net(sdf, eth_node, eth_driver, network_virt_tx, network_virt_rx)
-liblwip = Sddf.Lwip(sdf, network_system, webserver)
+liblwip = Sddf.Lwip(sdf, network_system, netserver)
 
 
 sdf.add_pd(serial_driver)
@@ -92,11 +95,11 @@ sdf.add_pd(eth_driver)
 sdf.add_pd(network_virt_tx)
 sdf.add_pd(network_virt_rx)
 sdf.add_pd(network_copy)
-sdf.add_pd(webserver)
+sdf.add_pd(netserver)
 sdf.add_pd(timer_driver)
-timer_system.add_client(webserver)
-serial_system.add_client(webserver)
-network_system.add_client_with_copier(webserver, network_copy)
+timer_system.add_client(netserver)
+serial_system.add_client(netserver)
+network_system.add_client_with_copier(netserver, network_copy)
 
 assert serial_system.connect()
 assert serial_system.serialise_config(".")
@@ -108,5 +111,5 @@ assert network_system.connect()
 assert network_system.serialise_config(".")
 
 
-with open("webserver.system", "w") as f:
+with open("system.system", "w") as f:
     f.write(sdf.render())

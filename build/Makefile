@@ -44,13 +44,10 @@ SDDF_BIN=serial_driver.elf \
 
 all: loader.img
 
-MICROKIT_FLAGS =webserver.system
+MICROKIT_FLAGS =system.system
 MICROKIT_FLAGS+=--search-path ./build
 MICROKIT_FLAGS+=--board $(MICROKIT_BOARD)
 MICROKIT_FLAGS+=--config $(MICROKIT_CONFIG)
-
-webserver.img: $(SDDF_BIN) webserver.elf webserver.system
-	$(MICROKIT_TOOL) $(MICROKIT_FLAGS) -o webserver.img -r webserver.txt
 
 include ../vendor/sddf/util/util.mk
 
@@ -62,6 +59,15 @@ include ../vendor/sddf/network/components/network_components.mk
 include ../vendor/sddf/network/lib_sddf_lwip/lib_sddf_lwip.mk
 
 include ../vendor/sddf/drivers/timer/arm/timer_driver.mk
+
+ECHOSERVER_OBJ=echoserver/echoserver.o \
+               echoserver/raw_socket.o
+
+echoserver/%.o: ../echoserver/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+echoserver.elf: $(ECHOSERVER_OBJ) libsddf_util.a lib_sddf_lwip.a
+	$(LD) $(ECHOSERVER_OBJ) -o echoserver.elf $(LDFLAGS) -l_sddf_lwip $(LIBS_NODEBUG) $(LIBC_OBJ)
 
 WEBSERVER_OBJ=webserver/webserver.o \
               webserver/fs.o \
@@ -76,22 +82,41 @@ webserver/%.o: ../vendor/sddf/network/ipstacks/lwip/src/apps/http/%.c
 webserver.elf: $(WEBSERVER_OBJ) libsddf_util.a lib_sddf_lwip.a
 	$(LD) $(WEBSERVER_OBJ) -o webserver.elf $(LDFLAGS) -l_sddf_lwip $(LIBS_NODEBUG) $(LIBC_OBJ)
 
-webserver.system: ../meta.py qemuvirt.dtb
-	python3 ../meta.py core_config/$(CONFIG_NUM_CORES).json
+webserver.img: $(SDDF_BIN) webserver.elf ../meta.py
+	python3 ../meta.py core_config/$(CONFIG_NUM_CORES).json webserver
 	$(OBJCOPY) --update-section .device_resources=serial_driver_device_resources.data serial_driver.elf
 	$(OBJCOPY) --update-section .serial_driver_config=serial_driver_config.data serial_driver.elf
 	$(OBJCOPY) --update-section .serial_virt_tx_config=serial_virt_tx.data serial_virt_tx.elf
 	$(OBJCOPY) --update-section .serial_virt_rx_config=serial_virt_rx.data serial_virt_rx.elf
-	$(OBJCOPY) --update-section .serial_client_config=serial_client_webserver.data webserver.elf
-	$(OBJCOPY) --update-section .net_client_config=net_client_webserver.data webserver.elf
-	$(OBJCOPY) --update-section .lib_sddf_lwip_config=lib_sddf_lwip_config_webserver.data webserver.elf
 	$(OBJCOPY) --update-section .net_driver_config=net_driver.data eth_driver_virtio.elf
 	$(OBJCOPY) --update-section .device_resources=eth_driver_device_resources.data eth_driver_virtio.elf
 	$(OBJCOPY) --update-section .net_virt_tx_config=net_virt_tx.data network_virt_tx.elf
 	$(OBJCOPY) --update-section .net_virt_rx_config=net_virt_rx.data network_virt_rx.elf
 	$(OBJCOPY) --update-section .net_copy_config=net_copy_network_copy.data network_copy.elf
 	$(OBJCOPY) --update-section .device_resources=timer_driver_device_resources.data timer_driver.elf
-	$(OBJCOPY) --update-section .timer_client_config=timer_client_webserver.data webserver.elf
+	$(OBJCOPY) --update-section .serial_client_config=serial_client_netserver.data webserver.elf
+	$(OBJCOPY) --update-section .timer_client_config=timer_client_netserver.data webserver.elf
+	$(OBJCOPY) --update-section .net_client_config=net_client_netserver.data webserver.elf
+	$(OBJCOPY) --update-section .lib_sddf_lwip_config=lib_sddf_lwip_config_netserver.data webserver.elf
+	$(MICROKIT_TOOL) $(MICROKIT_FLAGS) -o webserver.img -r webserver.txt
+
+echoserver.img: ../meta.py qemuvirt.dtb $(SDDF_BIN) echoserver.elf
+	python3 ../meta.py core_config/$(CONFIG_NUM_CORES).json echoserver
+	$(OBJCOPY) --update-section .device_resources=serial_driver_device_resources.data serial_driver.elf
+	$(OBJCOPY) --update-section .serial_driver_config=serial_driver_config.data serial_driver.elf
+	$(OBJCOPY) --update-section .serial_virt_tx_config=serial_virt_tx.data serial_virt_tx.elf
+	$(OBJCOPY) --update-section .serial_virt_rx_config=serial_virt_rx.data serial_virt_rx.elf
+	$(OBJCOPY) --update-section .net_driver_config=net_driver.data eth_driver_virtio.elf
+	$(OBJCOPY) --update-section .device_resources=eth_driver_device_resources.data eth_driver_virtio.elf
+	$(OBJCOPY) --update-section .net_virt_tx_config=net_virt_tx.data network_virt_tx.elf
+	$(OBJCOPY) --update-section .net_virt_rx_config=net_virt_rx.data network_virt_rx.elf
+	$(OBJCOPY) --update-section .net_copy_config=net_copy_network_copy.data network_copy.elf
+	$(OBJCOPY) --update-section .device_resources=timer_driver_device_resources.data timer_driver.elf
+	$(OBJCOPY) --update-section .serial_client_config=serial_client_netserver.data echoserver.elf
+	$(OBJCOPY) --update-section .timer_client_config=timer_client_netserver.data echoserver.elf
+	$(OBJCOPY) --update-section .net_client_config=net_client_netserver.data echoserver.elf
+	$(OBJCOPY) --update-section .lib_sddf_lwip_config=lib_sddf_lwip_config_netserver.data echoserver.elf
+	$(MICROKIT_TOOL) $(MICROKIT_FLAGS) -o echoserver.img -r echoserver.txt
 
 QEMU_MACHINE=-machine virt
 QEMU_FLAGS =-cpu host
@@ -105,6 +130,7 @@ QEMU_FLAGS+=-global virtio-mmio.force-legacy=false
 QEMU_FLAGS+=-accel kvm
 
 QEMU_FLAGS_WEBSERVER=-device loader,file=webserver.img,addr=0x70000000,cpu-num=0
+QEMU_FLAGS_ECHOSERVER=-device loader,file=echoserver.img,addr=0x70000000,cpu-num=0
 QEMU_FLAGS_DISCOVER=-device loader,file=$(VIRTIO_DISCOVER),addr=0x70000000,cpu-num=0
 
 qemuvirt.dtb:
@@ -112,6 +138,9 @@ qemuvirt.dtb:
 
 qemu-webserver: webserver.img
 	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_WEBSERVER)
+
+qemu-echoserver: echoserver.img
+	qemu-system-aarch64 $(QEMU_MACHINE) $(QEMU_FLAGS) $(QEMU_FLAGS_ECHOSERVER)
 
 $(VIRTIO_DISCOVER):
 	wget https://github.com/IkerGalardi/VirtioDiscover/releases/download/v0.1.0/VirtioDiscover-Aarch64-Loader-Off0x70000000.img -O $(VIRTIO_DISCOVER)
