@@ -66,10 +66,7 @@ WEBSERVER_OBJ=webserver/webserver.o \
               webserver/fs.o \
               webserver/httpd.o
 
-servers:
-	mkdir -p servers
-
-webserver/%.o: ../servers/%.c
+webserver/%.o: ../webserver/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
 webserver/%.o: ../vendor/sddf/network/ipstacks/lwip/src/apps/http/%.c
