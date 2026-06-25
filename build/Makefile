@@ -43,8 +43,6 @@ SDDF_BIN=serial_driver.elf \
          network_virt_tx.elf \
          timer_driver.elf
 
-all: loader.img
-
 MICROKIT_FLAGS =system.system
 MICROKIT_FLAGS+=--search-path ./build
 MICROKIT_FLAGS+=--board $(MICROKIT_BOARD)
