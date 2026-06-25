@@ -83,7 +83,7 @@ webserver/%.o: ../vendor/sddf/network/ipstacks/lwip/src/apps/http/%.c
 webserver.elf: $(WEBSERVER_OBJ) libsddf_util.a lib_sddf_lwip.a
 	$(LD) $(WEBSERVER_OBJ) -o webserver.elf $(LDFLAGS) -l_sddf_lwip $(LIBS_NODEBUG) $(LIBC_OBJ)
 
-webserver.img: $(SDDF_BIN) webserver.elf ../meta.py
+webserver.img: $(SDDF_BIN) webserver.elf ../meta.py qemuvirt.dtb
 	python3 ../meta.py core_config/$(CONFIG_NUM_CORES).json webserver
 	$(OBJCOPY) --update-section .device_resources=serial_driver_device_resources.data serial_driver.elf
 	$(OBJCOPY) --update-section .serial_driver_config=serial_driver_config.data serial_driver.elf
@@ -101,7 +101,7 @@ webserver.img: $(SDDF_BIN) webserver.elf ../meta.py
 	$(OBJCOPY) --update-section .lib_sddf_lwip_config=lib_sddf_lwip_config_netserver.data webserver.elf
 	$(MICROKIT_TOOL) $(MICROKIT_FLAGS) -o webserver.img -r webserver.txt
 
-echoserver.img: ../meta.py qemuvirt.dtb $(SDDF_BIN) echoserver.elf
+echoserver.img: ../meta.py qemuvirt.dtb $(SDDF_BIN) echoserver.elf qemuvirt.dtb
 	python3 ../meta.py core_config/$(CONFIG_NUM_CORES).json echoserver
 	$(OBJCOPY) --update-section .device_resources=serial_driver_device_resources.data serial_driver.elf
 	$(OBJCOPY) --update-section .serial_driver_config=serial_driver_config.data serial_driver.elf
