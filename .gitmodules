@@ -1,0 +1,3 @@
+[submodule "vendor/sddf"]
+	path = vendor/sddf
+	url = https://github.com/au-ts/sddf
